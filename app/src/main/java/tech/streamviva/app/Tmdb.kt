@@ -133,11 +133,18 @@ object Tmdb {
         } catch (e: Exception) { null }
     }
 
-    /** imdb id + seasons (tv) */
+    /** imdb id + seasons (tv). TMDB stopped returning imdb_id on /tv/{id}
+     *  for shows — fall back to /external_ids when it's blank. */
     suspend fun details(type: String, tmdbId: Long): Pair<String, List<Season>> =
         withContext(Dispatchers.IO) {
             val j = get("/$type/$tmdbId")
-            val imdb = j.optString("imdb_id", "")
+            var imdb = j.optString("imdb_id", "")
+            if (imdb.isBlank()) {
+                try {
+                    val ext = get("/$type/$tmdbId/external_ids")
+                    imdb = ext.optString("imdb_id", "")
+                } catch (_: Exception) {}
+            }
             val seasons = mutableListOf<Season>()
             if (type == "tv") {
                 val arr = j.optJSONArray("seasons") ?: org.json.JSONArray()
