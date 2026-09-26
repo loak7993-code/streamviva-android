@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -43,10 +44,10 @@ import coil.compose.AsyncImage
 const val IMG = "https://image.tmdb.org/t/p/w500"
 const val IMG_W780 = "https://image.tmdb.org/t/p/w780"
 
-/* ------------------------------ wordmark ------------------------------ */
+/* ------------------------------ brand ------------------------------ */
 
 @Composable
-fun Wordmark(size: Int = 30, alignBottom: Boolean = true) {
+fun Wordmark(size: Int = 26, alignBottom: Boolean = true) {
     Row(verticalAlignment = if (alignBottom) Alignment.Bottom else Alignment.CenterVertically) {
         Text("Stream", color = White, fontSize = size.sp, fontFamily = Serif, lineHeight = size.sp * 1.05)
         Text(
@@ -65,112 +66,110 @@ fun Kicker(text: String, color: Color = IrisSoft) {
     Text(
         text.uppercase(),
         color = color,
-        fontSize = 10.5.sp,
+        fontSize = 10.sp,
         fontFamily = Sans,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 2.8.sp,
+        letterSpacing = 2.6.sp,
     )
 }
 
-/* ------------------------------ sections ------------------------------ */
-
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null) {
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .width(3.dp)
-                    .height(15.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Iris)
-            )
-            Spacer(Modifier.width(9.dp))
-            Text(
-                title,
-                color = White,
-                fontSize = 17.sp,
-                fontFamily = Sans,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (subtitle != null) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    subtitle,
-                    color = Text3,
-                    fontSize = 11.sp,
-                    fontFamily = Sans,
-                )
-            }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            title,
+            color = White,
+            fontSize = 14.5.sp,
+            fontFamily = Sans,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (subtitle != null) {
+            Spacer(Modifier.width(8.dp))
+            Text(subtitle, color = Text3, fontSize = 11.sp, fontFamily = Sans)
         }
-        Spacer(Modifier.height(12.dp))
     }
 }
 
-/* ------------------------------- cards -------------------------------- */
+/* --------------------------- netflix cards --------------------------- */
 
+/** compact poster card — netflix row density */
 @Composable
-fun PosterCard(m: Tmdb.Media, onOpen: (Tmdb.Media) -> Unit, wide: Boolean = false) {
-    val w = if (wide) 168.dp else 128.dp
-    val h = if (wide) 252.dp else 192.dp
+fun CompactCard(m: Tmdb.Media, onOpen: (Tmdb.Media) -> Unit) {
     Column(
         Modifier
-            .width(w)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Surface)
+            .width(104.dp)
             .clickable { onOpen(m) },
     ) {
-        Box {
-            AsyncImage(
-                model = m.poster?.let { IMG + it } ?: R.drawable.placeholder,
-                contentDescription = m.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(h * 0.78f),
-            )
-            if (m.rating > 0) {
-                Row(
-                    Modifier
-                        .padding(7.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(Color(0xB30D0D10))
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Star, contentDescription = null, tint = Gold, modifier = Modifier.size(10.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        "%.1f".format(m.rating),
-                        color = White, fontSize = 10.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-        }
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(
-                m.title,
-                color = Text1,
-                fontSize = 12.5.sp,
-                fontFamily = Sans,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
-            Text(
-                "${m.year} · ${if (m.type == "tv") "show" else "film"}",
-                color = Text3,
-                fontSize = 10.5.sp,
-                fontFamily = Sans,
-            )
-        }
+        AsyncImage(
+            model = m.poster?.let { IMG + it } ?: R.drawable.placeholder,
+            contentDescription = m.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(156.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Surface),
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+            m.title,
+            color = Text2,
+            fontSize = 10.5.sp,
+            fontFamily = Sans,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** top-10 card — big outlined number + poster, the netflix signature */
+@Composable
+fun Top10Card(m: Tmdb.Media, rank: Int, onOpen: (Tmdb.Media) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier
+            .width(152.dp)
+            .clickable { onOpen(m) },
+    ) {
+        Text(
+            rank.toString(),
+            color = Color.White,
+            fontSize = 84.sp,
+            fontFamily = Serif,
+            lineHeight = 64.sp,
+            style = androidx.compose.ui.text.TextStyle(
+                drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 2.5f,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                )
+            ),
+            modifier = Modifier
+                .padding(end = 0.dp)
+                .offset(x = (-8).dp),
+        )
+        AsyncImage(
+            model = m.poster?.let { IMG + it } ?: R.drawable.placeholder,
+            contentDescription = m.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(96.dp)
+                .height(144.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Surface),
+        )
     }
 }
 
 /* ------------------------------ skeletons ------------------------------ */
 
 @Composable
-fun Shimmer(modifier: Modifier, radius: Int = 12) {
+fun Shimmer(modifier: Modifier, radius: Int = 8) {
     val t = rememberInfiniteTransition(label = "sh")
     val a by t.animateFloat(
-        initialValue = 0.3f, targetValue = 0.6f,
+        initialValue = 0.28f, targetValue = 0.55f,
         animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Reverse),
         label = "a",
     )
@@ -178,18 +177,16 @@ fun Shimmer(modifier: Modifier, radius: Int = 12) {
 }
 
 @Composable
-fun CardRowSkeleton(wide: Boolean = false) {
-    val w = if (wide) 168.dp else 128.dp
-    val h = if (wide) 252.dp else 192.dp
+fun RowSkeleton() {
     Row(
-        Modifier.padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        repeat(3) {
+        repeat(4) {
             Column {
-                Shimmer(Modifier.size(width = w, height = h))
-                Spacer(Modifier.height(8.dp))
-                Shimmer(Modifier.size(width = w * 0.7f, height = 11.dp), radius = 4)
+                Shimmer(Modifier.size(width = 104.dp, height = 156.dp), radius = 6)
+                Spacer(Modifier.height(6.dp))
+                Shimmer(Modifier.size(width = 70.dp, height = 9.dp), radius = 4)
             }
         }
     }
@@ -198,14 +195,14 @@ fun CardRowSkeleton(wide: Boolean = false) {
 @Composable
 fun HomeSkeleton() {
     Column {
-        Spacer(Modifier.height(230.dp))
-        Shimmer(Modifier.padding(horizontal = 20.dp).size(width = 140.dp, height = 18.dp), radius = 6)
-        Spacer(Modifier.height(16.dp))
-        CardRowSkeleton()
-        Spacer(Modifier.height(26.dp))
-        Shimmer(Modifier.padding(horizontal = 20.dp).size(width = 160.dp, height = 18.dp), radius = 6)
-        Spacer(Modifier.height(16.dp))
-        CardRowSkeleton()
+        Spacer(Modifier.height(300.dp))
+        Shimmer(Modifier.padding(horizontal = 12.dp).size(width = 130.dp, height = 14.dp), radius = 6)
+        Spacer(Modifier.height(12.dp))
+        RowSkeleton()
+        Spacer(Modifier.height(24.dp))
+        Shimmer(Modifier.padding(horizontal = 12.dp).size(width = 150.dp, height = 14.dp), radius = 6)
+        Spacer(Modifier.height(12.dp))
+        RowSkeleton()
     }
 }
 

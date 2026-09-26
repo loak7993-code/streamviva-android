@@ -339,14 +339,14 @@ fun DetailsScreen(
             // more like this
             if (similar.isNotEmpty()) {
                 item {
-                    Column(Modifier.padding(top = 14.dp)) {
+                    Column(Modifier.padding(top = 10.dp)) {
                         SectionHeader("More like this")
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             items(similar) { m ->
-                                PosterCard(m, onOpen = onOpen, wide = false)
+                                CompactCard(m, onOpen)
                             }
                         }
                     }
