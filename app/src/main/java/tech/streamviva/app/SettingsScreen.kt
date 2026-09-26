@@ -73,22 +73,7 @@ fun SettingsScreen(
                     Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(23.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(android.graphics.Color.parseColor(me?.getJSONObject("user")?.getJSONObject("profile")?.optString("colorA") ?: "#8D6BE0")),
-                                        Color(android.graphics.Color.parseColor(me?.getJSONObject("user")?.getJSONObject("profile")?.optString("colorB") ?: "#5B3FA8")),
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("V", color = White, fontSize = 20.sp, fontFamily = Serif)
-                    }
+                    AvatarView(avatar = Store.active.icon, size = 46, modifier = Modifier.size(46.dp))
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -154,13 +139,7 @@ fun SettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Brush.verticalGradient(listOf(hexColor(p.colorA), hexColor(p.colorB)))),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(p.icon, fontSize = 17.sp) }
+                    AvatarView(avatar = p.icon, size = 38, modifier = Modifier.size(38.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(
                         p.name + if (p.id == Store.activeProfileId) "  ·" else "",

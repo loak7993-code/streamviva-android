@@ -119,30 +119,21 @@ fun ProfileTile(p: Store.Profile, manageMode: Boolean, onPick: () -> Unit, onEdi
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(120.dp),
     ) {
-        Box(
-            Modifier
-                .size(110.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Brush.verticalGradient(listOf(hexColor(p.colorA), hexColor(p.colorB))))
-                .border(
-                    2.dp,
-                    if (manageMode) Color(0x33FFFFFF) else Color.Transparent,
-                    RoundedCornerShape(12.dp),
-                )
-                .clickable { if (manageMode) onEdit() else { Store.switchProfile(p.id); onPick() } },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(p.icon, fontSize = 40.sp)
+        Box {
+            AvatarView(avatar = p.icon, size = 110, modifier = Modifier.size(110.dp))
             if (manageMode) {
                 Box(
                     Modifier
-                        .align(Alignment.Center)
-                        .fillMaxSize()
-                        .background(Color(0x66000000)),
+                        .size(110.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x66000000))
+                        .clickable { onEdit() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.Edit, null, tint = White, modifier = Modifier.size(30.dp))
                 }
+            } else {
+                Box(Modifier.size(110.dp).clickable { Store.switchProfile(p.id); onPick() })
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -205,13 +196,7 @@ fun ProfileEditorScreen(
         Spacer(Modifier.height(18.dp))
 
         // preview
-        Box(
-            Modifier
-                .size(96.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Brush.verticalGradient(listOf(hexColor(colors.first), hexColor(colors.second)))),
-            contentAlignment = Alignment.Center,
-        ) { Text(icon, fontSize = 36.sp) }
+        AvatarView(avatar = icon, size = 96, modifier = Modifier.size(96.dp))
 
         Spacer(Modifier.height(22.dp))
 
@@ -238,28 +223,112 @@ fun ProfileEditorScreen(
         Spacer(Modifier.height(22.dp))
 
         // avatar
+        var avatarTab by remember { mutableStateOf(0) } // 0 presets, 1 emoji, 2 photo
         Kicker("avatar", color = Text3)
         Spacer(Modifier.height(10.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(6),
-            modifier = Modifier.fillMaxWidth().height(90.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(AVATARS) { a ->
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (icon == a) hexColor(colors.first).copy(alpha = 0.25f) else Surface)
-                        .border(
-                            1.dp,
-                            if (icon == a) hexColor(colors.first) else Color.Transparent,
-                            RoundedCornerShape(10.dp),
-                        )
-                        .clickable { icon = a },
-                    contentAlignment = Alignment.Center,
-                ) { Text(a, fontSize = 20.sp) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("characters", "emoji", "photo").forEachIndexed { i, label ->
+                Text(
+                    label,
+                    color = if (avatarTab == i) White else Text3,
+                    fontSize = 12.sp,
+                    fontFamily = Sans,
+                    fontWeight = if (avatarTab == i) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (avatarTab == i) Store.accent.copy(alpha = 0.22f) else Surface)
+                        .clickable { avatarTab = i }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        when (avatarTab) {
+            0 -> LazyVerticalGrid(
+                columns = GridCells.Fixed(4),
+                modifier = Modifier.fillMaxWidth().height(190.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(FACE_COUNT) { i ->
+                    val key = "face:$i"
+                    AvatarView(
+                        avatar = key, size = 52,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .border(
+                                2.dp,
+                                if (icon == key) White else Color.Transparent,
+                                RoundedCornerShape(12.dp),
+                            )
+                            .clickable { icon = key },
+                    )
+                }
+            }
+            1 -> LazyVerticalGrid(
+                columns = GridCells.Fixed(6),
+                modifier = Modifier.fillMaxWidth().height(130.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(AVATARS) { a ->
+                    val key = "emoji:$a"
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (icon == key) Store.accent.copy(alpha = 0.25f) else Surface)
+                            .border(
+                                1.dp,
+                                if (icon == key) Store.accent else Color.Transparent,
+                                RoundedCornerShape(10.dp),
+                            )
+                            .clickable { icon = key },
+                        contentAlignment = Alignment.Center,
+                    ) { Text(a, fontSize = 20.sp) }
+                }
+            }
+            2 -> {
+                // photo picker
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    uri?.let {
+                        try {
+                            val dir = java.io.File(ctx.filesDir, "avatars").apply { mkdirs() }
+                            val file = java.io.File(dir, "p${System.currentTimeMillis()}.jpg")
+                            ctx.contentResolver.openInputStream(it)?.use { input ->
+                                java.io.FileOutputStream(file).use { output -> input.copyTo(output) }
+                            }
+                            icon = "photo:avatars/${file.name}"
+                        } catch (_: Exception) {}
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    if (icon.startsWith("photo:")) {
+                        AvatarView(avatar = icon, size = 96)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Button(
+                        onClick = {
+                            picker.launch(
+                                androidx.activity.result.PickVisualMediaRequest(
+                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Store.accent, contentColor = White),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (icon.startsWith("photo:")) "pick another photo" else "choose from gallery", fontSize = 13.sp, fontFamily = Sans)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("photos stay on this device", color = Text3, fontSize = 10.5.sp, fontFamily = Sans)
+                }
             }
         }
 

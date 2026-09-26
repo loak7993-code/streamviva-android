@@ -402,22 +402,9 @@ fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: 
                     .size(19.dp),
             )
             // active profile avatar
-            Box(
-                Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                hexColor(Store.active.colorA),
-                                hexColor(Store.active.colorB),
-                            )
-                        )
-                    )
-                    .clickable { onSwitchProfile() }
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text(Store.active.icon, fontSize = 12.sp) }
+            Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).clickable { onSwitchProfile() }) {
+                AvatarView(avatar = Store.active.icon, size = 26, modifier = Modifier.size(26.dp))
+            }
             Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.Rounded.Settings,
