@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,14 +47,22 @@ import kotlinx.coroutines.launch
 sealed class Screen {
     data object Home : Screen()
     data object Search : Screen()
+    data object Library : Screen()
     data class Details(val media: Tmdb.Media) : Screen()
-    data class Player(val title: String, val streamUrl: String) : Screen()
+    data class Player(
+        val title: String,
+        val streamUrl: String,
+        val media: Tmdb.Media? = null,
+        val season: Int? = null,
+        val episode: Int? = null,
+    ) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        Store.init(this)
         setContent {
             SilkTheme { App() }
         }
@@ -68,25 +77,57 @@ fun App() {
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) }
 
     val showChrome = current !is Screen.Player
+    val scope = rememberCoroutineScope()
+
+    // open by type+id (from continue watching / history)
+    fun openById(type: String, id: String) {
+        scope.launch {
+            try {
+                val media = Tmdb.byId(type, id.toLong())
+                if (media != null) push(Screen.Details(media))
+            } catch (_: Exception) {}
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Bg)) {
-        // screens
         androidx.compose.animation.Crossfade(targetState = current, label = "screen") { screen ->
             when (screen) {
-                is Screen.Home -> HomeScreen(onOpen = { push(Screen.Details(it)) }, onSearch = { push(Screen.Search) })
+                is Screen.Home -> HomeScreen(
+                    onOpen = { push(Screen.Details(it)) },
+                    onSearch = { push(Screen.Search) },
+                    onOpenById = { type, id -> openById(type, id) },
+                )
                 is Screen.Search -> SearchScreen(onOpen = { push(Screen.Details(it)) })
-                is Screen.Details -> DetailsScreen(media = screen.media, onPlay = { t, u -> push(Screen.Player(t, u)) })
-                is Screen.Player -> PlayerScreen(title = screen.title, streamUrl = screen.streamUrl)
+                is Screen.Library -> LibraryScreen(
+                    onOpen = { push(Screen.Details(it)) },
+                    onOpenById = { type, id -> openById(type, id) },
+                )
+                is Screen.Details -> DetailsScreen(
+                    media = screen.media,
+                    onPlay = { t, u, m, s, e -> push(Screen.Player(t, u, m, s, e)) },
+                    onOpen = { push(Screen.Details(it)) },
+                )
+                is Screen.Player -> PlayerScreen(
+                    title = screen.title,
+                    streamUrl = screen.streamUrl,
+                    media = screen.media,
+                    season = screen.season,
+                    episode = screen.episode,
+                )
             }
         }
 
-        // bottom bar (hidden in player)
         if (showChrome) {
             Box(Modifier.align(Alignment.BottomCenter)) {
                 BottomBar(
-                    current = if (current is Screen.Search) 1 else 0,
+                    current = when (current) {
+                        is Screen.Search -> 1
+                        is Screen.Library -> 2
+                        else -> 0
+                    },
                     onHome = { stack = listOf(Screen.Home) },
                     onSearch = { if (current !is Screen.Search) push(Screen.Search) },
+                    onLibrary = { if (current !is Screen.Library) push(Screen.Library) },
                 )
             }
         }
@@ -95,17 +136,18 @@ fun App() {
 }
 
 @Composable
-fun BottomBar(current: Int, onHome: () -> Unit, onSearch: () -> Unit) {
+fun BottomBar(current: Int, onHome: () -> Unit, onSearch: () -> Unit, onLibrary: () -> Unit) {
     Surface(color = Color(0xF20D0D10), shadowElevation = 12.dp) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 34.dp, vertical = 10.dp),
+                .padding(horizontal = 20.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             BottomItem(icon = Icons.Rounded.Home, label = "Home", active = current == 0, onClick = onHome)
             BottomItem(icon = Icons.Rounded.Search, label = "Search", active = current == 1, onClick = onSearch)
+            BottomItem(icon = Icons.Rounded.FavoriteBorder, label = "Library", active = current == 2, onClick = onLibrary)
         }
     }
 }
@@ -134,7 +176,7 @@ fun BottomItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
 /* ================================ home ================================ */
 
 @Composable
-fun HomeScreen(onOpen: (Tmdb.Media) -> Unit, onSearch: () -> Unit) {
+fun HomeScreen(onOpen: (Tmdb.Media) -> Unit, onSearch: () -> Unit, onOpenById: (String, String) -> Unit) {
     var trending by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
     var topMovies by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
     var topTv by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
@@ -177,6 +219,15 @@ fun HomeScreen(onOpen: (Tmdb.Media) -> Unit, onSearch: () -> Unit) {
             item { HeroPager(trending.take(5), onOpen) }
         } else {
             item { Shimmer(Modifier.fillMaxWidth().height(420.dp), radius = 0) }
+        }
+
+        // continue watching
+        val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
+        if (cont.isNotEmpty()) {
+            item { Spacer(Modifier.height(24.dp)) }
+            item {
+                ContinueRow(entries = cont, onOpen = { t, i -> onOpenById(t, i) }, onRemove = { e -> Store.removeProgress(e) })
+            }
         }
 
         if (trending.isEmpty()) {

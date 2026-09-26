@@ -7,19 +7,17 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/** Native TMDB client — browse/search/details. */
+/** Native TMDB client — browse/search/details/discover/credits. */
 object Tmdb {
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    // same public read token the deployed instance uses
     private const val TOKEN =
         "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlN2NjZjNhZDYyN2M4ZTA3MmQ3NjQ3YWFlNDRmNGU3ZiIsIm5iZiI6MTc3Mjg1MjkxMS40MjcsInN1YiI6IjY5YWI5NmFmNzgyNzRlMTFmMThmYWYxOCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.bUX3sQru8sCYqTKO-SB9YqXfLvoa88bwc9g3AJdfst8"
 
     private const val API = "https://api.themoviedb.org/3"
-    const val IMG = "https://image.tmdb.org/t/p/w500"
 
     data class Media(
         val id: Long,
@@ -28,47 +26,53 @@ object Tmdb {
         val poster: String?,
         val backdrop: String?,
         val year: String,
-        val type: String, // "movie" | "tv"
+        val type: String,
         val rating: Double,
     )
 
-    private fun get(path: String, params: Map<String, String> = emptyMap()): JSONObject =
-        withContextBridge(
-            Request.Builder()
-                .url(
-                    buildString {
-                        append(API).append(path)
-                        if (params.isNotEmpty()) {
-                            append('?')
-                            append(params.entries.joinToString("&") {
-                                "${java.net.URLEncoder.encode(it.key, "UTF-8")}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
-                            })
-                        }
-                    },
-                )
-                .header("Authorization", "Bearer $TOKEN")
-                .header("Accept", "application/json")
-                .build(),
-        )
+    data class Season(val number: Int, val id: Long, val episodeCount: Int)
 
-    private fun withContextBridge(req: Request): JSONObject {
+    data class Episode(
+        val number: Int,
+        val name: String,
+        val still: String?,
+        val imdbId: String?,
+        val overview: String,
+        val rating: Double,
+    )
+
+    data class CastMember(
+        val name: String,
+        val character: String,
+        val profile: String?,
+    )
+
+    data class Genre(val id: Int, val name: String)
+
+    private fun get(path: String, params: Map<String, String> = emptyMap()): JSONObject {
+        val url = buildString {
+            append(API).append(path)
+            if (params.isNotEmpty()) {
+                append('?')
+                append(params.entries.joinToString("&") {
+                    "${java.net.URLEncoder.encode(it.key, "UTF-8")}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+                })
+            }
+        }
+        val req = Request.Builder().url(url)
+            .header("Authorization", "Bearer $TOKEN")
+            .header("Accept", "application/json")
+            .build()
         client.newCall(req).execute().use { res ->
             if (!res.isSuccessful) error("tmdb http ${res.code}")
             return JSONObject(res.body!!.string())
         }
     }
 
-    suspend fun trendingMovies(): List<Media> = list("/trending/movie/week")
-    suspend fun trendingTv(): List<Media> = list("/trending/tv/week")
-    suspend fun popularMovies(): List<Media> = list("/movie/popular")
-    suspend fun topRatedTv(): List<Media> = list("/tv/top_rated")
-
-    private suspend fun list(path: String): List<Media> = withContext(Dispatchers.IO) {
-        val j = get(path)
+    private fun parseList(j: JSONObject, type: String): List<Media> {
         val arr = j.optJSONArray("results") ?: org.json.JSONArray()
-        (0 until arr.length()).mapNotNull { i ->
+        return (0 until arr.length()).mapNotNull { i ->
             val o = arr.getJSONObject(i)
-            val type = if (path.contains("/tv")) "tv" else "movie"
             val date = o.optString(if (type == "tv") "first_air_date" else "release_date")
             Media(
                 id = o.getLong("id"),
@@ -82,6 +86,13 @@ object Tmdb {
             )
         }
     }
+
+    suspend fun trendingMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/trending/movie/week"), "movie") }
+    suspend fun trendingTv(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/trending/tv/week"), "tv") }
+    suspend fun popularMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/movie/popular"), "movie") }
+    suspend fun topRatedTv(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/tv/top_rated"), "tv") }
+    suspend fun airingToday(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/tv/airing_today"), "tv") }
+    suspend fun upcomingMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/movie/upcoming"), "movie") }
 
     suspend fun search(query: String): List<Media> = withContext(Dispatchers.IO) {
         val j = get("/search/multi", mapOf("query" to query, "include_adult" to "false"))
@@ -104,12 +115,28 @@ object Tmdb {
         }
     }
 
-    data class Season(val number: Int, val id: Long, val episodeCount: Int)
+    /** fetch a Media by type + tmdb id (for continue watching / history) */
+    suspend fun byId(type: String, tmdbId: Long): Media? = withContext(Dispatchers.IO) {
+        try {
+            val j = get("/$type/$tmdbId")
+            val date = j.optString(if (type == "tv") "first_air_date" else "release_date")
+            Media(
+                id = tmdbId,
+                title = j.optString(if (type == "tv") "name" else "title", "?"),
+                overview = j.optString("overview", ""),
+                poster = j.optString("poster_path").takeIf { it.isNotBlank() && it != "null" },
+                backdrop = j.optString("backdrop_path").takeIf { it.isNotBlank() && it != "null" },
+                year = date.take(4),
+                type = type,
+                rating = j.optDouble("vote_average", 0.0),
+            )
+        } catch (e: Exception) { null }
+    }
 
-    /** returns imdb id + seasons (tv only) */
+    /** imdb id + seasons (tv) */
     suspend fun details(type: String, tmdbId: Long): Pair<String, List<Season>> =
         withContext(Dispatchers.IO) {
-            val j = get("/$type/$tmdbId", mapOf("language" to "en-US"))
+            val j = get("/$type/$tmdbId")
             val imdb = j.optString("imdb_id", "")
             val seasons = mutableListOf<Season>()
             if (type == "tv") {
@@ -123,16 +150,80 @@ object Tmdb {
             imdb to seasons
         }
 
-    /** returns episode imdb ids for a season (needed for per-episode streams) */
-    suspend fun episodes(tvId: Long, seasonNumber: Int): List<Pair<Int, String>> =
+    /** full episodes with names + stills */
+    suspend fun episodes(tvId: Long, seasonNumber: Int): List<Episode> =
         withContext(Dispatchers.IO) {
             val j = get("/tv/$tvId/season/$seasonNumber")
             val arr = j.optJSONArray("episodes") ?: org.json.JSONArray()
-            (0 until arr.length()).mapNotNull { i ->
+            (0 until arr.length()).map { i ->
                 val e = arr.getJSONObject(i)
-                val imdb = e.optString("imdb_id").takeIf { it.isNotBlank() && it != "null" }
-                    ?: return@mapNotNull null
-                e.optInt("episode_number") to imdb
+                Episode(
+                    number = e.optInt("episode_number"),
+                    name = e.optString("name", "Episode"),
+                    still = e.optString("still_path").takeIf { it.isNotBlank() && it != "null" },
+                    imdbId = e.optString("imdb_id").takeIf { it.isNotBlank() && it != "null" },
+                    overview = e.optString("overview", ""),
+                    rating = e.optDouble("vote_average", 0.0),
+                )
             }
         }
+
+    /** more like this */
+    suspend fun recommendations(type: String, tmdbId: Long): List<Media> =
+        withContext(Dispatchers.IO) {
+            try {
+                parseList(get("/$type/$tmdbId/recommendations"), type)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+    /** top cast */
+    suspend fun credits(type: String, tmdbId: Long): List<CastMember> =
+        withContext(Dispatchers.IO) {
+            try {
+                val j = get("/$type/$tmdbId/credits")
+                val arr = j.optJSONArray("cast") ?: org.json.JSONArray()
+                (0 until minOf(arr.length(), 15)).map { i ->
+                    val c = arr.getJSONObject(i)
+                    CastMember(
+                        name = c.optString("name", ""),
+                        character = c.optString("character", ""),
+                        profile = c.optString("profile_path").takeIf { it.isNotBlank() && it != "null" },
+                    )
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+    /** genre lists */
+    private var movieGenres: List<Genre> = emptyList()
+    private var tvGenres: List<Genre> = emptyList()
+
+    suspend fun genres(type: String): List<Genre> = withContext(Dispatchers.IO) {
+        val cached = if (type == "tv") tvGenres else movieGenres
+        if (cached.isNotEmpty()) return@withContext cached
+        try {
+            val j = get("/genre/$type/list")
+            val arr = j.optJSONArray("genres") ?: org.json.JSONArray()
+            val list = (0 until arr.length()).map { i ->
+                val g = arr.getJSONObject(i)
+                Genre(g.getInt("id"), g.getString("name"))
+            }
+            if (type == "tv") tvGenres = list else movieGenres = list
+            list
+        } catch (e: Exception) { emptyList() }
+    }
+
+    /** browse by genre */
+    suspend fun byGenre(type: String, genreId: Int, page: Int = 1): List<Media> =
+        withContext(Dispatchers.IO) {
+            try {
+                parseList(
+                    get("/discover/$type", mapOf("with_genres" to genreId.toString(), "page" to page.toString(), "sort_by" to "popularity.desc")),
+                    type,
+                )
+            } catch (e: Exception) { emptyList() }
+    }
 }
