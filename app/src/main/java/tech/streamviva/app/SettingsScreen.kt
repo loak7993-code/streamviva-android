@@ -1,6 +1,7 @@
 package tech.streamviva.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onSignUp: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onLogin: () -> Unit,
+    onSignUp: () -> Unit,
+    onSwitchProfile: (String) -> Unit,
+    onEditProfile: (Store.Profile) -> Unit,
+    onAddProfile: () -> Unit,
+) {
     val session = Store.session
     var me by remember { mutableStateOf<org.json.JSONObject?>(null) }
 
@@ -128,6 +137,82 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onSignUp: () -> Unit
                             border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceLine),
                             modifier = Modifier.weight(1f).height(42.dp),
                         ) { Text("Sign in", fontSize = 13.5.sp, fontFamily = Sans) }
+                    }
+                }
+            }
+        }
+
+        /* ------------------------- profiles ------------------------- */
+        Spacer(Modifier.height(20.dp))
+        SettingsGroup("Profiles") {
+            // current + all profiles quick switch
+            Store.profiles.forEach { p ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onSwitchProfile(p.id) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Brush.verticalGradient(listOf(hexColor(p.colorA), hexColor(p.colorB)))),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(p.icon, fontSize = 17.sp) }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        p.name + if (p.id == Store.activeProfileId) "  ·" else "",
+                        color = if (p.id == Store.activeProfileId) Store.accent else Text1,
+                        fontSize = 14.sp,
+                        fontFamily = Sans,
+                        fontWeight = if (p.id == Store.activeProfileId) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.Rounded.Edit,
+                        contentDescription = "edit",
+                        tint = Text3,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onEditProfile(p) }
+                            .padding(6.dp)
+                            .size(15.dp),
+                    )
+                }
+            }
+            HorizontalLine()
+            SettingsAction("Add profile") { onAddProfile() }
+            SettingsToggle(
+                "Skip profile picker",
+                "jump straight into the last profile",
+                checked = Store.skipProfilePicker,
+            ) { Store.updateSkipProfilePicker(it) }
+        }
+
+        /* ------------------------- appearance ------------------------- */
+        Spacer(Modifier.height(20.dp))
+        SettingsGroup("Appearance") {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("Accent color", color = Text1, fontSize = 14.sp, fontFamily = Sans)
+                Text("tints buttons, progress bars, highlights", color = Text3, fontSize = 11.5.sp, fontFamily = Sans)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Store.ACCENTS.forEach { (name, hexes) ->
+                        val selected = Store.accentHex.equals(hexes.first, ignoreCase = true)
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Brush.verticalGradient(listOf(hexColor(hexes.first), hexColor(hexes.second))))
+                                .border(
+                                    2.dp,
+                                    if (selected) White else Color.Transparent,
+                                    RoundedCornerShape(10.dp),
+                                )
+                                .clickable { Store.setAccent(hexes.first, hexes.second) },
+                        )
                     }
                 }
             }

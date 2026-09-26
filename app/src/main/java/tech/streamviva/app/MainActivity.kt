@@ -60,11 +60,19 @@ sealed class Screen {
     data object Settings : Screen()
     data object LoginFromSettings : Screen()
     data object SignUpFromSettings : Screen()
+    data object SwitchProfile : Screen()
+    data class EditProfile(val profile: Store.Profile, val isNew: Boolean) : Screen()
 }
 
 enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("My List") }
 
-sealed class AuthFlow { data object Welcome : AuthFlow(); data object SignUp : AuthFlow(); data object Login : AuthFlow() }
+sealed class AuthFlow {
+    data object Welcome : AuthFlow()
+    data object SignUp : AuthFlow()
+    data object Login : AuthFlow()
+    data object ProfilePicker : AuthFlow()
+    data class ProfileEditor(val profile: Store.Profile?, val isNew: Boolean) : AuthFlow()
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +89,13 @@ class MainActivity : ComponentActivity() {
 fun App() {
     var stack by remember { mutableStateOf<List<Screen>>(listOf(Screen.Home)) }
     var tab by remember { mutableStateOf(HomeTab.HOME) }
-    var authFlow by remember { mutableStateOf<AuthFlow?>(if (Store.onboardingDone) null else AuthFlow.Welcome) }
+    var authFlow by remember { mutableStateOf<AuthFlow?>(
+        when {
+            !Store.onboardingDone -> AuthFlow.Welcome
+            !Store.skipProfilePicker -> AuthFlow.ProfilePicker
+            else -> null
+        }
+    ) }
     val current = stack.last()
     val scope = rememberCoroutineScope()
 
@@ -108,13 +122,28 @@ fun App() {
                 },
             )
             AuthFlow.SignUp -> SignUpFlow(
-                onDone = { authFlow = null },
+                onDone = { authFlow = AuthFlow.ProfilePicker },
                 onBack = { authFlow = AuthFlow.Welcome },
             )
             AuthFlow.Login -> LoginFlow(
-                onDone = { authFlow = null },
+                onDone = { authFlow = AuthFlow.ProfilePicker },
                 onBack = { authFlow = AuthFlow.Welcome },
             )
+            AuthFlow.ProfilePicker -> ProfilePickerScreen(
+                onPick = { authFlow = null },
+                onManage = { authFlow = AuthFlow.ProfileEditor(null, isNew = true) },
+            )
+            is AuthFlow.ProfileEditor -> {
+                val flow = authFlow
+                if (flow is AuthFlow.ProfileEditor) {
+                    ProfileEditorScreen(
+                        profile = flow.profile,
+                        isNew = flow.isNew,
+                        onDone = { authFlow = AuthFlow.ProfilePicker },
+                        onDelete = { authFlow = AuthFlow.ProfilePicker },
+                    )
+                }
+            }
             null -> {}
         }
         return
@@ -130,6 +159,7 @@ fun App() {
                     onSearch = { push(Screen.Search) },
                     onOpenById = { t, i -> openById(t, i) },
                     onSettings = { push(Screen.Settings) },
+                    onSwitchProfile = { push(Screen.SwitchProfile) },
                 )
                 is Screen.Search -> SearchScreen(onOpen = { push(Screen.Details(it)) })
                 is Screen.Details -> DetailsScreen(
@@ -148,9 +178,28 @@ fun App() {
                     onBack = { pop() },
                     onLogin = { push(Screen.LoginFromSettings) },
                     onSignUp = { push(Screen.SignUpFromSettings) },
+                    onSwitchProfile = { id ->
+                        Store.switchProfile(id)
+                        pop()
+                    },
+                    onEditProfile = { p -> push(Screen.EditProfile(p, false)) },
+                    onAddProfile = { push(Screen.EditProfile(Store.Profile("new", "", "🎬", "#8D6BE0", "#5B3FA8"), true)) },
                 )
                 is Screen.LoginFromSettings -> LoginFlow(onDone = { pop() }, onBack = { pop() })
                 is Screen.SignUpFromSettings -> SignUpFlow(onDone = { pop() }, onBack = { pop() })
+                is Screen.SwitchProfile -> ProfilePickerScreen(
+                    onPick = { pop() },
+                    onManage = { push(Screen.EditProfile(Store.Profile("new", "", "🎬", "#8D6BE0", "#5B3FA8"), true)) },
+                )
+                is Screen.EditProfile -> {
+                    val ed = screen
+                    ProfileEditorScreen(
+                        profile = if (ed.isNew) null else ed.profile,
+                        isNew = ed.isNew,
+                        onDone = { pop() },
+                        onDelete = { pop() },
+                    )
+                }
             }
         }
     }
@@ -242,6 +291,7 @@ fun NetflixHome(
     onSearch: () -> Unit,
     onOpenById: (String, String) -> Unit,
     onSettings: () -> Unit,
+    onSwitchProfile: () -> Unit,
 ) {
     var trending by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
     var topMovies by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
@@ -316,6 +366,7 @@ fun NetflixHome(
             onTab = onTab,
             onSearch = onSearch,
             onSettings = onSettings,
+            onSwitchProfile = onSwitchProfile,
         )
     }
 }
@@ -325,7 +376,7 @@ private fun Store.ProgressEntry.toMedia(): Tmdb.Media? = null // handled via onO
 /* ------------------------------ top nav ------------------------------ */
 
 @Composable
-fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
+fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -350,6 +401,24 @@ fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: 
                     .padding(8.dp)
                     .size(19.dp),
             )
+            // active profile avatar
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                hexColor(Store.active.colorA),
+                                hexColor(Store.active.colorB),
+                            )
+                        )
+                    )
+                    .clickable { onSwitchProfile() }
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(Store.active.icon, fontSize = 12.sp) }
+            Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.Rounded.Settings,
                 contentDescription = "settings",

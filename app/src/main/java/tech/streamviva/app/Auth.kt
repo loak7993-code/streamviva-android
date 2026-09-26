@@ -152,6 +152,23 @@ object Auth {
             )
         }
 
+    /** update account profile (nickname + colors) */
+    suspend fun updateProfile(token: String, nickname: String, colorA: String, colorB: String, icon: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val body = JSONObject()
+                    .put("nickname", nickname)
+                    .put("profile", JSONObject().put("colorA", colorA).put("colorB", colorB).put("icon", icon))
+                val req = Request.Builder()
+                    .url("$BACKEND/users/@me")
+                    .header("Authorization", "Bearer $token")
+                    .header("Content-Type", "application/json")
+                    .patch(body.toString().toRequestBody())
+                    .build()
+                client.newCall(req).execute().use { res -> res.isSuccessful }
+            } catch (e: Exception) { false }
+        }
+
     /** validate the stored token */
     suspend fun me(token: String): JSONObject? = withContext(Dispatchers.IO) {
         try {

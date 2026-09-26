@@ -19,9 +19,10 @@ val SurfaceLine = Color(0xFF24242C)
 val Text1 = Color(0xFFCBCBD5)
 val Text2 = Color(0xFF8E8E9B)
 val Text3 = Color(0xFF5F5F6B)
-val Iris = Color(0xFF8D6BE0)
-val IrisSoft = Color(0xFFAF97EB)
-val IrisDeep = Color(0xFF5B3FA8)
+// dynamic accents live in Store (customizable in settings)
+val Iris get() = Store.accent
+val IrisSoft get() = Store.accentSoft
+val IrisDeep get() = Store.accentDeep
 val White = Color(0xFFF8F8FB)
 val Gold = Color(0xFFE5C77E)
 val Rose = Color(0xFFE88383)
