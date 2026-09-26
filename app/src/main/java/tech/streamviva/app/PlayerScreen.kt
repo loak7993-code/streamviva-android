@@ -1,5 +1,7 @@
 package tech.streamviva.app
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
@@ -38,6 +40,17 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
     var error by remember { mutableStateOf<String?>(null) }
+
+    // auto-rotate to landscape while playing; restore on exit
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val previous = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose {
+            activity?.requestedOrientation =
+                previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
 
     val resumeMs = media?.let { Store.getProgress(it, season, episode)?.positionMs } ?: 0L
 
