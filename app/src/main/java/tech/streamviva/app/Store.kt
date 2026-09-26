@@ -112,6 +112,8 @@ object Store {
     var showRatings by mutableStateOf(true)
     var skipProfilePicker by mutableStateOf(false)
     var defaultTab by mutableStateOf("HOME")
+    var subtitleLanguage by mutableStateOf<String?>(null)
+        private set
 
     /* ----------------------------- init ----------------------------- */
 
@@ -148,6 +150,7 @@ object Store {
         autoplayNext = prefs.getBoolean("autoplayNext", true)
         showRatings = prefs.getBoolean("showRatings", true)
         skipProfilePicker = prefs.getBoolean("skipProfilePicker", false)
+        subtitleLanguage = prefs.getString("subtitleLanguage", null)
         defaultTab = prefs.getString("defaultTab", "HOME") ?: "HOME"
 
         session = prefs.getString("sessionToken", null)?.let { t ->
@@ -245,6 +248,11 @@ object Store {
     fun updateShowRatings(v: Boolean) { showRatings = v; prefs.edit().putBoolean("showRatings", v).apply() }
     fun updateSkipProfilePicker(v: Boolean) { skipProfilePicker = v; prefs.edit().putBoolean("skipProfilePicker", v).apply() }
     fun updateDefaultTab(v: String) { defaultTab = v; prefs.edit().putString("defaultTab", v).apply() }
+    fun updateSubtitleLanguage(code: String?) {
+        subtitleLanguage = code
+        if (code == null) prefs.edit().remove("subtitleLanguage").apply()
+        else prefs.edit().putString("subtitleLanguage", code).apply()
+    }
 
     /* --------------------------- persistence --------------------------- */
 
