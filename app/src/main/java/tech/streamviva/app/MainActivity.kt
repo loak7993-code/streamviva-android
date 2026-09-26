@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,9 +57,14 @@ sealed class Screen {
         val season: Int? = null,
         val episode: Int? = null,
     ) : Screen()
+    data object Settings : Screen()
+    data object LoginFromSettings : Screen()
+    data object SignUpFromSettings : Screen()
 }
 
 enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("My List") }
+
+sealed class AuthFlow { data object Welcome : AuthFlow(); data object SignUp : AuthFlow(); data object Login : AuthFlow() }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,6 +81,7 @@ class MainActivity : ComponentActivity() {
 fun App() {
     var stack by remember { mutableStateOf<List<Screen>>(listOf(Screen.Home)) }
     var tab by remember { mutableStateOf(HomeTab.HOME) }
+    var authFlow by remember { mutableStateOf<AuthFlow?>(if (Store.onboardingDone) null else AuthFlow.Welcome) }
     val current = stack.last()
     val scope = rememberCoroutineScope()
 
@@ -89,7 +96,29 @@ fun App() {
         }
     }
 
-    val onHomeRoot = current is Screen.Home
+    // onboarding gate
+    if (authFlow != null) {
+        when (authFlow) {
+            AuthFlow.Welcome -> WelcomeScreen(
+                onSignUp = { authFlow = AuthFlow.SignUp },
+                onLogin = { authFlow = AuthFlow.Login },
+                onGuest = {
+                    Store.completeOnboarding()
+                    authFlow = null
+                },
+            )
+            AuthFlow.SignUp -> SignUpFlow(
+                onDone = { authFlow = null },
+                onBack = { authFlow = AuthFlow.Welcome },
+            )
+            AuthFlow.Login -> LoginFlow(
+                onDone = { authFlow = null },
+                onBack = { authFlow = AuthFlow.Welcome },
+            )
+            null -> {}
+        }
+        return
+    }
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         androidx.compose.animation.Crossfade(targetState = current, label = "screen") { screen ->
@@ -100,6 +129,7 @@ fun App() {
                     onOpen = { push(Screen.Details(it)) },
                     onSearch = { push(Screen.Search) },
                     onOpenById = { t, i -> openById(t, i) },
+                    onSettings = { push(Screen.Settings) },
                 )
                 is Screen.Search -> SearchScreen(onOpen = { push(Screen.Details(it)) })
                 is Screen.Details -> DetailsScreen(
@@ -114,12 +144,92 @@ fun App() {
                     season = screen.season,
                     episode = screen.episode,
                 )
+                is Screen.Settings -> SettingsScreen(
+                    onBack = { pop() },
+                    onLogin = { push(Screen.LoginFromSettings) },
+                    onSignUp = { push(Screen.SignUpFromSettings) },
+                )
+                is Screen.LoginFromSettings -> LoginFlow(onDone = { pop() }, onBack = { pop() })
+                is Screen.SignUpFromSettings -> SignUpFlow(onDone = { pop() }, onBack = { pop() })
             }
         }
     }
     BackHandler(enabled = stack.size > 1) { pop() }
-    // tab back handling resets to home tab
     BackHandler(enabled = stack.size == 1 && tab != HomeTab.HOME) { tab = HomeTab.HOME }
+}
+
+/** sign-up wrapper: performs the register call */
+@Composable
+fun SignUpFlow(onDone: () -> Unit, onBack: () -> Unit) {
+    var pending by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    pending?.let { mnemonic ->
+        LaunchedEffect(mnemonic) {
+            try {
+                val result = Auth.register(mnemonic, "StreamViva Android", "#8D6BE0", "#5B3FA8", "07")
+                Store.saveSession(Store.SavedSession(result.token, result.userId, "StreamViva Android"))
+                Store.completeOnboarding()
+                onDone()
+            } catch (e: Exception) {
+                error = e.message
+                pending = null
+            }
+        }
+    }
+
+    if (pending != null) {
+        Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Iris, modifier = Modifier.size(34.dp), strokeWidth = 3.dp)
+                Spacer(Modifier.height(18.dp))
+                Text("creating your account…", color = Text2, fontSize = 13.sp, fontFamily = Sans)
+            }
+        }
+        return
+    }
+
+    SignUpScreen(
+        onDone = { mnemonic -> pending = mnemonic },
+        onBack = onBack,
+    )
+}
+
+/** login wrapper: performs the login call */
+@Composable
+fun LoginFlow(onDone: () -> Unit, onBack: () -> Unit) {
+    var pending by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    pending?.let { mnemonic ->
+        LaunchedEffect(mnemonic) {
+            try {
+                val result = Auth.login(mnemonic, "StreamViva Android")
+                Store.saveSession(Store.SavedSession(result.token, result.userId, "StreamViva Android"))
+                Store.completeOnboarding()
+                onDone()
+            } catch (e: Exception) {
+                error = e.message
+                pending = null
+            }
+        }
+    }
+
+    if (pending != null) {
+        Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Iris, modifier = Modifier.size(34.dp), strokeWidth = 3.dp)
+                Spacer(Modifier.height(18.dp))
+                Text("signing in…", color = Text2, fontSize = 13.sp, fontFamily = Sans)
+            }
+        }
+        return
+    }
+
+    LoginScreen(
+        onDone = { mnemonic -> pending = mnemonic },
+        onBack = onBack,
+    )
 }
 
 /* ============================ netflix home ============================ */
@@ -131,6 +241,7 @@ fun NetflixHome(
     onOpen: (Tmdb.Media) -> Unit,
     onSearch: () -> Unit,
     onOpenById: (String, String) -> Unit,
+    onSettings: () -> Unit,
 ) {
     var trending by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
     var topMovies by remember { mutableStateOf<List<Tmdb.Media>>(emptyList()) }
@@ -204,6 +315,7 @@ fun NetflixHome(
             tab = tab,
             onTab = onTab,
             onSearch = onSearch,
+            onSettings = onSettings,
         )
     }
 }
@@ -213,7 +325,7 @@ private fun Store.ProgressEntry.toMedia(): Tmdb.Media? = null // handled via onO
 /* ------------------------------ top nav ------------------------------ */
 
 @Composable
-fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit) {
+fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -235,6 +347,16 @@ fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: 
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable { onSearch() }
+                    .padding(8.dp)
+                    .size(19.dp),
+            )
+            Icon(
+                Icons.Rounded.Settings,
+                contentDescription = "settings",
+                tint = White,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onSettings() }
                     .padding(8.dp)
                     .size(19.dp),
             )

@@ -22,6 +22,19 @@ object Store {
     var history by mutableStateOf<List<HistoryEntry>>(emptyList())
         private set
 
+    // auth session
+    data class SavedSession(val token: String, val userId: String, val device: String)
+    var session by mutableStateOf<SavedSession?>(null)
+        private set
+
+    // first-open onboarding
+    var onboardingDone by mutableStateOf(false)
+        private set
+
+    // settings
+    var autoplayNext by mutableStateOf(true)
+    var showRatings by mutableStateOf(true)
+
     data class ProgressEntry(
         val tmdbId: String,
         val title: String,
@@ -49,7 +62,37 @@ object Store {
     fun init(context: Context) {
         prefs = context.getSharedPreferences("streamviva", Context.MODE_PRIVATE)
         load()
+        onboardingDone = prefs.getBoolean("onboardingDone", false)
+        autoplayNext = prefs.getBoolean("autoplayNext", true)
+        showRatings = prefs.getBoolean("showRatings", true)
+        session = prefs.getString("sessionToken", null)?.let { t ->
+            SavedSession(t, prefs.getString("sessionUserId", "") ?: "", prefs.getString("sessionDevice", "StreamViva Android") ?: "StreamViva Android")
+        }
     }
+
+    fun completeOnboarding() {
+        onboardingDone = true
+        prefs.edit().putBoolean("onboardingDone", true).apply()
+    }
+
+    fun saveSession(s: SavedSession) {
+        session = s
+        prefs.edit()
+            .putString("sessionToken", s.token)
+            .putString("sessionUserId", s.userId)
+            .putString("sessionDevice", s.device)
+            .apply()
+    }
+
+    fun clearSession() {
+        session = null
+        prefs.edit()
+            .remove("sessionToken").remove("sessionUserId").remove("sessionDevice")
+            .apply()
+    }
+
+    fun updateAutoplayNext(v: Boolean) { autoplayNext = v; prefs.edit().putBoolean("autoplayNext", v).apply() }
+    fun updateShowRatings(v: Boolean) { showRatings = v; prefs.edit().putBoolean("showRatings", v).apply() }
 
     private fun load() {
         try {
@@ -152,6 +195,21 @@ object Store {
 
     fun getProgress(media: Tmdb.Media, season: Int? = null, episode: Int? = null): ProgressEntry? =
         progress[key(ProgressEntry(media.id.toString(), "", null, "", 0, 0, season, episode, 0))]
+
+    fun clearAllProgress() {
+        progress = emptyMap()
+        persist("progress", JSONArray())
+    }
+
+    fun clearHistory() {
+        history = emptyList()
+        persist("history", JSONArray())
+    }
+
+    fun clearFavorites() {
+        favorites = emptyList()
+        persist("favorites", JSONArray())
+    }
 
     fun removeProgress(entry: ProgressEntry) {
         progress = progress - key(entry)
