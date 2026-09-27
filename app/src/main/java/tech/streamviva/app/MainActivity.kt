@@ -27,6 +27,9 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -559,15 +562,16 @@ fun GlassDock(
                 .align(Alignment.TopCenter),
         )
         Row(
-            Modifier.padding(horizontal = 5.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             HomeTab.entries.forEach { t ->
                 val active = tab == t
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
                         .background(
                             if (active) Brush.verticalGradient(
                                 0f to Iris.copy(alpha = 0.5f),
@@ -578,12 +582,24 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                 ) {
+                    Icon(
+                        imageVector = when (t) {
+                            HomeTab.HOME -> Icons.Rounded.Home
+                            HomeTab.MOVIES -> Icons.Rounded.Movie
+                            HomeTab.SHOWS -> Icons.Rounded.Tv
+                            HomeTab.LIST -> Icons.Rounded.FavoriteBorder
+                        },
+                        contentDescription = t.label,
+                        tint = if (active) White else Color(0xFFC9C9D4),
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         t.label,
                         color = if (active) White else Color(0xFFE2E2EA),
-                        fontSize = 13.5.sp,
+                        fontSize = 12.sp,
                         fontFamily = Sans,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     )
