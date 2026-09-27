@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -405,7 +407,7 @@ fun NetflixHome(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 60.dp),
+            contentPadding = PaddingValues(bottom = 110.dp),
         ) {
             // billboard
             if (trending.isNotEmpty()) {
@@ -448,86 +450,146 @@ fun NetflixHome(
             }
         }
 
-        // top bar: wordmark + tabs + search (netflix style, solidifies on scroll)
-        TopNav(
-            scrolled = scrolled,
+        // minimal top bar: name left, actions right
+        TopBarMinimal(scrolled = scrolled, onSearch = onSearch, onSettings = onSettings, onSwitchProfile = onSwitchProfile)
+
+        // floating glass dock at the bottom
+        GlassDock(
             tab = tab,
             onTab = onTab,
-            onSearch = onSearch,
-            onSettings = onSettings,
-            onSwitchProfile = onSwitchProfile,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 14.dp),
         )
     }
 }
 
 private fun Store.ProgressEntry.toMedia(): Tmdb.Media? = null // handled via onOpenById
 
-/* ------------------------------ top nav ------------------------------ */
+/* ------------------------- minimal top bar ------------------------- */
 
 @Composable
-fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
-    Column(
+fun TopBarMinimal(scrolled: Boolean, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
+    Row(
         Modifier
             .fillMaxWidth()
-            .background(if (scrolled) Bg else Color(0x66000000)),
+            .background(
+                Brush.verticalGradient(
+                    0f to Bg.copy(alpha = 0.85f),
+                    1f to Color.Transparent,
+                )
+            )
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        Wordmark(size = 22)
+        Spacer(Modifier.weight(1f))
+        Icon(
+            Icons.Rounded.Search,
+            contentDescription = "search",
+            tint = White,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable { onSearch() }
+                .padding(8.dp)
+                .size(19.dp),
+        )
+        Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).clickable { onSwitchProfile() }) {
+            AvatarView(avatar = Store.active.icon, size = 26, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            Icons.Rounded.Settings,
+            contentDescription = "settings",
+            tint = White,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable { onSettings() }
+                .padding(8.dp)
+                .size(19.dp),
+        )
+    }
+}
+
+/* ------------------------ liquid glass dock ------------------------ */
+
+@Composable
+fun GlassDock(
+    tab: HomeTab,
+    onTab: (HomeTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                Brush.verticalGradient(
+                    0f to Color(0x66222228),
+                    1f to Color(0x591C1C22),
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    0f to Color(0x2EFFFFFF),
+                    0.5f to Color(0x14FFFFFF),
+                    1f to Color(0x22FFFFFF),
+                ),
+                RoundedCornerShape(28.dp),
+            )
+            .shadow(16.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x44000000), spotColor = Color(0x66000000)),
+    ) {
+        // specular highlight along the top edge
+        Box(
             Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Wordmark(size = 21)
-            Spacer(Modifier.weight(1f))
-            Icon(
-                Icons.Rounded.Search,
-                contentDescription = "search",
-                tint = White,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { onSearch() }
-                    .padding(8.dp)
-                    .size(19.dp),
-            )
-            // active profile avatar
-            Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).clickable { onSwitchProfile() }) {
-                AvatarView(avatar = Store.active.icon, size = 26, modifier = Modifier.size(26.dp))
-            }
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                Icons.Rounded.Settings,
-                contentDescription = "settings",
-                tint = White,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { onSettings() }
-                    .padding(8.dp)
-                    .size(19.dp),
-            )
-        }
-        // tabs
+                .height(1.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        0.3f to Color(0x3DFFFFFF),
+                        0.5f to Color(0x55FFFFFF),
+                        0.7f to Color(0x3DFFFFFF),
+                        1f to Color.Transparent,
+                    )
+                )
+                .align(Alignment.TopCenter),
+        )
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             HomeTab.entries.forEach { t ->
                 val active = tab == t
-                Text(
-                    t.label,
-                    color = if (active) White else Text2,
-                    fontSize = 13.sp,
-                    fontFamily = Sans,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (active) Iris.copy(alpha = 0.22f) else Color.Transparent)
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (active) Brush.verticalGradient(
+                                0f to Iris.copy(alpha = 0.5f),
+                                1f to Iris.copy(alpha = 0.3f),
+                            ) else Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to Color.Transparent,
+                            )
+                        )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        t.label,
+                        color = if (active) White else Text2,
+                        fontSize = 13.sp,
+                        fontFamily = Sans,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(6.dp))
     }
 }
 
