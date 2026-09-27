@@ -25,6 +25,8 @@ object Subtitles {
         val code: String,        // ISO 639-1 for player matching
         val url: String,
         val hearingImpaired: Boolean,
+        val format: String = "vtt",   // vtt | srt
+        val source: String = "vdrk",
     )
 
     suspend fun fetch(type: String, tmdbId: Long, season: Int? = null, episode: Int? = null): List<Subtitle> =
@@ -53,7 +55,7 @@ object Subtitles {
                             .replace(Regex("\\s*\\d+$"), "")
                             .trim()
                         val code = LANG_CODES[langName.lowercase()] ?: continue
-                        raw.add(Subtitle(label, langName, code, file, hi))
+                        raw.add(Subtitle(label, langName, code, file, hi, "vtt", "vdrk"))
                     }
                     // one entry per language: prefer non-HI, keep first
                     val seen = mutableMapOf<String, Subtitle>()
@@ -66,6 +68,58 @@ object Subtitles {
                 emptyList()
             }
         }
+
+    /**
+     * OpenSubtitles (rest.opensubtitles.org, VLSub UA trick).
+     * SRT only, utf-8 download variant.
+     */
+    suspend fun fetchOpenSubtitles(imdbId: String, season: Int? = null, episode: Int? = null): List<Subtitle> =
+        withContext(Dispatchers.IO) {
+            try {
+                val path = if (season != null && episode != null) {
+                    "episode-$episode/imdbid-${imdbId.removePrefix("tt")}/season-$season"
+                } else {
+                    "imdbid-${imdbId.removePrefix("tt")}"
+                }
+                val req = Request.Builder()
+                    .url("https://rest.opensubtitles.org/search/$path")
+                    .header("X-User-Agent", "VLSub 0.10.2")
+                    .build()
+                client.newCall(req).execute().use { res ->
+                    if (!res.isSuccessful) return@withContext emptyList()
+                    val arr = JSONArray(res.body!!.string())
+                    val out = mutableListOf<Subtitle>()
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        if (o.optString("SubFormat") != "srt") continue
+                        val langName = o.optString("LanguageName").trim()
+                        val code = LANG_CODES[langName.lowercase()] ?: continue
+                        val url = o.optString("SubDownloadLink")
+                            .replace(".gz", "")
+                            .replace("download/", "download/subencoding-utf8/")
+                        if (url.isBlank()) continue
+                        val hi = o.optInt("SubHearingImpaired", 0) == 1
+                        out.add(Subtitle("$langName (opensubs)", langName, code, url, hi, "srt", "opensubs"))
+                    }
+                    out
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+    /** merge VDRK + OpenSubtitles; VDRK (native VTT) wins per language */
+    suspend fun fetchAll(type: String, tmdbId: Long, imdbId: String?, season: Int? = null, episode: Int? = null): List<Subtitle> {
+        val vdrk = fetch(type, tmdbId, season, episode)
+        if (imdbId.isNullOrBlank()) return vdrk
+        val os = fetchOpenSubtitles(imdbId, season, episode)
+        if (os.isEmpty()) return vdrk
+        val byLang = vdrk.associateBy { it.language }.toMutableMap()
+        for (s in os.sortedBy { it.hearingImpaired }) {
+            if (!byLang.containsKey(s.language)) byLang[s.language] = s
+        }
+        return byLang.values.sortedBy { it.language }
+    }
 
     /** common language name -> ISO 639-1 */
     val LANG_CODES: Map<String, String> = mapOf(
@@ -88,5 +142,11 @@ object Subtitles {
         "georgian" to "ka", "kazakh" to "kk", "mongolian" to "mn", "nepali" to "ne",
         "sinhala" to "si", "somali" to "so", "tagalog" to "tl", "uzbek" to "uz",
         "esperanto" to "eo", "bosnian" to "bs", "montenegrin" to "sr-ME",
+        "portuguese (br)" to "pt-BR", "portuguese (portugal)" to "pt", "brazilian" to "pt-BR",
+        "spanish (latin america)" to "es-419", "spanish (spain)" to "es", "big 5 code" to "zh-Hant",
+        "chinese (simplified)" to "zh-Hans", "chinese (traditional)" to "zh-Hant", "czech" to "cs",
+        "greek, modern" to "el", "macedonian" to "mk", "malayalam" to "ml", "marathi" to "mr",
+        "punjabi" to "pa", "serbian (cyrillic)" to "sr", "serbian (latin)" to "sr", "kurdish" to "ku",
+        "breton" to "br", "faroese" to "fo", "gallegan" to "gl", "greenlandic" to "kl", "interlingua" to "ia",
     )
 }

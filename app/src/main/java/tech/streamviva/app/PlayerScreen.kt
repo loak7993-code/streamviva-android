@@ -82,7 +82,7 @@ fun PlayerScreen(
     LaunchedEffect(media?.id) {
         subsLoading = true
         subs = media?.let {
-            Subtitles.fetch(it.type, it.id, season, episode)
+            Subtitles.fetchAll(it.type, it.id, it._imdb, season, episode)
         } ?: emptyList()
         // auto-select last used language
         val pref = Store.subtitleLanguage
@@ -100,7 +100,10 @@ fun PlayerScreen(
                     builder.setSubtitleConfigurations(
                         listOf(
                             MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(s.url))
-                                .setMimeType(MimeTypes.TEXT_VTT)
+                                .setMimeType(
+                                    if (s.format == "srt") MimeTypes.APPLICATION_SUBRIP
+                                    else MimeTypes.TEXT_VTT
+                                )
                                 .setLanguage(s.code)
                                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                                 .setLabel(s.label)
@@ -255,7 +258,7 @@ fun SubtitlePickerDialog(
                         items(subs) { s ->
                             SubRow(
                                 s.language,
-                                if (s.hearingImpaired) "hearing impaired" else s.code,
+                                (if (s.hearingImpaired) "hearing impaired · " else "") + s.source,
                                 selected?.url == s.url,
                             ) { onSelect(s) }
                         }

@@ -66,7 +66,7 @@ fun DetailsScreen(
             try {
                 val r = if (media.type == "movie") StreamResolver.resolveMovie(imdbId)
                 else StreamResolver.resolveShow(imdbId, season ?: 1, episode ?: 1)
-                onPlay(r.title, r.masterUrl, media, season, episode)
+                onPlay(r.title, r.masterUrl, media.apply { _imdb = imdbId }, season, episode)
             } catch (e: Exception) { error = e.message } finally { resolving = null }
         }
     }

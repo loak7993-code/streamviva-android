@@ -28,6 +28,7 @@ object Tmdb {
         val year: String,
         val type: String,
         val rating: Double,
+        var _imdb: String = "",
     )
 
     data class Season(val number: Int, val id: Long, val episodeCount: Int)
