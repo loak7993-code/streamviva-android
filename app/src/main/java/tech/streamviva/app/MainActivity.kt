@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
