@@ -563,7 +563,7 @@ fun GlassDock(
                 .align(Alignment.TopCenter),
         )
         Row(
-            Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -583,7 +583,7 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
                 ) {
                     Icon(
                         imageVector = when (t) {
@@ -594,9 +594,9 @@ fun GlassDock(
                         },
                         contentDescription = t.label,
                         tint = if (active) White else Color(0xFFC9C9D4),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(17.dp),
                     )
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         t.label,
                         color = if (active) White else Color(0xFFE2E2EA),
