@@ -42,9 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-const val IMG = "https://image.tmdb.org/t/p/w500"
-const val IMG_W780 = "https://image.tmdb.org/t/p/w780"
+const val IMG = "https://image.tmdb.org/t/p/w342"
 const val IMG_DETAIL = "https://image.tmdb.org/t/p/w500"
+const val IMG_W780 = "https://image.tmdb.org/t/p/w780"
 
 /* ------------------------------ brand ------------------------------ */
 
