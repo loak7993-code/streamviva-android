@@ -430,7 +430,7 @@ fun NetflixHome(
         TopBarMinimal(scrolled = false, onSearch = onSearch, onSettings = onSettings, onSwitchProfile = onSwitchProfile)
 
         // floating glass dock
-        GlassDock(
+        BottomNavBar(
             tab = tab,
             onTab = onTab,
             modifier = Modifier
@@ -442,11 +442,9 @@ fun NetflixHome(
 }
 
 @Composable
-private fun BoxScope.TabContent(visible: Boolean, content: @Composable () -> Unit) {
+private fun TabContent(visible: Boolean, content: @Composable () -> Unit) {
     if (visible) {
-        Box(Modifier.fillMaxSize().zIndex(1f)) {
-            content()
-        }
+        content()
     }
 }
 
@@ -591,100 +589,65 @@ fun TopBarMinimal(scrolled: Boolean, onSearch: () -> Unit, onSettings: () -> Uni
     }
 }
 
-/* ------------------------ liquid glass dock ------------------------ */
+/* ------------------------ bottom navigation bar ------------------------ */
 
 @Composable
-fun GlassDock(
+fun BottomNavBar(
     tab: HomeTab,
     onTab: (HomeTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.verticalGradient(
-                    0f to Color(0x8C22222A),
-                    1f to Color(0x7E1C1C24),
-                )
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    0f to Color(0x2EFFFFFF),
-                    0.5f to Color(0x14FFFFFF),
-                    1f to Color(0x22FFFFFF),
-                ),
-                RoundedCornerShape(28.dp),
-            )
-            .shadow(16.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x44000000), spotColor = Color(0x66000000)),
+    Surface(
+        color = Bg,
+        shadowElevation = 14.dp,
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
     ) {
-        // specular highlight along the top edge (matchParentSize: doesn't expand the dock)
-        Box(
-            Modifier
-                .matchParentSize()
-                .height(1.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        0f to Color.Transparent,
-                        0.3f to Color(0x3DFFFFFF),
-                        0.5f to Color(0x55FFFFFF),
-                        0.7f to Color(0x3DFFFFFF),
-                        1f to Color.Transparent,
-                    )
-                )
-                .align(Alignment.TopCenter),
-        )
         Row(
-            Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             HomeTab.entries.forEach { t ->
                 val active = tab == t
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (active) Brush.verticalGradient(
-                                0f to Iris.copy(alpha = 0.55f),
-                                1f to Iris.copy(alpha = 0.35f),
-                            ) else Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Transparent,
-                            )
-                        )
+                        .clip(RoundedCornerShape(14.dp))
                         .clickable { onTab(t) }
-                        .padding(horizontal = 15.dp, vertical = 5.dp),
+                        .padding(horizontal = 22.dp, vertical = 8.dp),
                 ) {
-                    Icon(
-                        imageVector = when (t) {
-                            HomeTab.HOME -> Icons.Rounded.Home
-                            HomeTab.MOVIES -> Icons.Rounded.Movie
-                            HomeTab.SHOWS -> Icons.Rounded.Tv
-                            HomeTab.LIST -> Icons.Rounded.FavoriteBorder
-                        },
-                        contentDescription = t.label,
-                        tint = if (active) White else Color(0xFFC9C9D4),
-                        modifier = Modifier.size(22.dp),
-                    )
-                    
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (active) Store.accent.copy(alpha = 0.18f) else Color.Transparent)
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = when (t) {
+                                HomeTab.HOME -> Icons.Rounded.Home
+                                HomeTab.MOVIES -> Icons.Rounded.Movie
+                                HomeTab.SHOWS -> Icons.Rounded.Tv
+                                HomeTab.LIST -> Icons.Rounded.FavoriteBorder
+                            },
+                            contentDescription = t.label,
+                            tint = if (active) Store.accent else Text3,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                     Text(
                         t.label,
-                        color = if (active) White else Color(0xFFE2E2EA),
-                        fontSize = 11.sp,
+                        color = if (active) Store.accent else Text3,
+                        fontSize = 10.sp,
                         fontFamily = Sans,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
         }
     }
 }
-
-/* ----------------------------- billboard ----------------------------- */
 
 @Composable
 fun Billboard(items: List<Tmdb.Media>, onOpen: (Tmdb.Media) -> Unit) {
