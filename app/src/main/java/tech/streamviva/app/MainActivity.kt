@@ -443,13 +443,10 @@ fun NetflixHome(
 
 @Composable
 private fun BoxScope.TabContent(visible: Boolean, content: @Composable () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .zIndex(if (visible) 1f else 0f)
-            .alpha(if (visible) 1f else 0f),
-    ) {
-        content()
+    if (visible) {
+        Box(Modifier.fillMaxSize().zIndex(1f)) {
+            content()
+        }
     }
 }
 
