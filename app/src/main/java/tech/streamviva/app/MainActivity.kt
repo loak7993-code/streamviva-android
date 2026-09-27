@@ -572,18 +572,18 @@ fun GlassDock(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(
                             if (active) Brush.verticalGradient(
-                                0f to Iris.copy(alpha = 0.5f),
-                                1f to Iris.copy(alpha = 0.3f),
+                                0f to Iris.copy(alpha = 0.55f),
+                                1f to Iris.copy(alpha = 0.35f),
                             ) else Brush.verticalGradient(
                                 0f to Color.Transparent,
                                 1f to Color.Transparent,
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 14.dp, vertical = 3.dp),
+                        .padding(horizontal = 15.dp, vertical = 5.dp),
                 ) {
                     Icon(
                         imageVector = when (t) {
@@ -594,7 +594,7 @@ fun GlassDock(
                         },
                         contentDescription = t.label,
                         tint = if (active) White else Color(0xFFC9C9D4),
-                        modifier = Modifier.size(19.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                     
                     Text(
@@ -749,7 +749,7 @@ fun ActionPill(
 
 /* ------------------------------ content row ------------------------------ */
 
-private val RowAnimEase = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private var rowsAnimatedOnce = false
 
 @Composable
 fun Row(
@@ -762,10 +762,14 @@ fun Row(
     contEntries: List<Store.ProgressEntry> = emptyList(),
     index: Int = 0,
 ) {
-    var shown by remember { mutableStateOf(false) }
+    // stagger only on the very first load — instant on every tab switch
+    var shown by remember { mutableStateOf(rowsAnimatedOnce) }
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(60L * index)
-        shown = true
+        if (!rowsAnimatedOnce) {
+            kotlinx.coroutines.delay(60L * index)
+            shown = true
+            if (index >= 3) rowsAnimatedOnce = true
+        }
     }
     Column(
         Modifier
