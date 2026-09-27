@@ -33,6 +33,8 @@ fun DetailsScreen(
 ) {
     var imdb by remember { mutableStateOf("") }
     var seasons by remember { mutableStateOf<List<Tmdb.Season>>(emptyList()) }
+    var genres by remember { mutableStateOf<List<Tmdb.Genre>>(emptyList()) }
+    var tagline by remember { mutableStateOf<String?>(null) }
     var episodes by remember { mutableStateOf<Map<Int, List<Tmdb.Episode>>>(emptyMap()) }
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var cast by remember { mutableStateOf<List<Tmdb.CastMember>>(emptyList()) }
@@ -44,10 +46,12 @@ fun DetailsScreen(
 
     LaunchedEffect(media.id) {
         try {
-            val (id, ss) = Tmdb.details(media.type, media.id)
-            imdb = id
-            seasons = ss
-            if (ss.isNotEmpty()) selectedSeason = ss.first().number
+            val det = Tmdb.details(media.type, media.id)
+            imdb = det.imdb
+            seasons = det.seasons
+            genres = det.genres
+            tagline = det.tagline
+            if (det.seasons.isNotEmpty()) selectedSeason = det.seasons.first().number
         } catch (e: Exception) { error = e.message }
         try { cast = Tmdb.credits(media.type, media.id) } catch (_: Exception) {}
         try { similar = Tmdb.recommendations(media.type, media.id) } catch (_: Exception) {}
@@ -122,6 +126,29 @@ fun DetailsScreen(
                                 color = Gold, fontSize = 12.sp, fontFamily = Sans,
                                 fontWeight = FontWeight.SemiBold,
                             )
+                        }
+                        if (tagline != null) {
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                tagline ?: "",
+                                color = IrisSoft, fontSize = 13.sp, fontFamily = Serif,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            )
+                        }
+                        if (genres.isNotEmpty()) {
+                            Spacer(Modifier.height(9.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                genres.take(4).forEach { g ->
+                                    Text(
+                                        g.name,
+                                        color = Text2, fontSize = 10.sp, fontFamily = Sans,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(SurfaceHi)
+                                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                     IconButton(

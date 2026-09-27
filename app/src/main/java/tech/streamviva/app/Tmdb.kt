@@ -134,9 +134,16 @@ object Tmdb {
         } catch (e: Exception) { null }
     }
 
-    /** imdb id + seasons (tv). TMDB stopped returning imdb_id on /tv/{id}
+    data class DetailsResult(
+        val imdb: String,
+        val seasons: List<Season>,
+        val genres: List<Genre>,
+        val tagline: String?,
+    )
+
+    /** imdb id + seasons + genres. TMDB stopped returning imdb_id on /tv/{id}
      *  for shows — fall back to /external_ids when it's blank. */
-    suspend fun details(type: String, tmdbId: Long): Pair<String, List<Season>> =
+    suspend fun details(type: String, tmdbId: Long): DetailsResult =
         withContext(Dispatchers.IO) {
             val j = get("/$type/$tmdbId")
             var imdb = j.optString("imdb_id", "")
@@ -155,7 +162,18 @@ object Tmdb {
                     if (sn > 0) seasons.add(Season(sn, s.getLong("id"), s.optInt("episode_count")))
                 }
             }
-            imdb to seasons
+            val genres = mutableListOf<Genre>()
+            val garr = j.optJSONArray("genres") ?: org.json.JSONArray()
+            for (i in 0 until garr.length()) {
+                val g = garr.getJSONObject(i)
+                genres.add(Genre(g.getInt("id"), g.optString("name", "")))
+            }
+            DetailsResult(
+                imdb,
+                seasons,
+                genres,
+                j.optString("tagline").takeIf { it.isNotBlank() && it != "null" },
+            )
         }
 
     /** full episodes with names + stills */

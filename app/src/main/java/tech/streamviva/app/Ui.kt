@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -111,7 +112,12 @@ fun CompactCard(m: Tmdb.Media, onOpen: (Tmdb.Media) -> Unit) {
                 .fillMaxWidth()
                 .height(156.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Surface),
+                .background(Surface)
+                .border(
+                    1.dp,
+                    Store.accent.copy(alpha = 0.35f),
+                    RoundedCornerShape(6.dp),
+                ),
         )
         Spacer(Modifier.height(5.dp))
         Text(

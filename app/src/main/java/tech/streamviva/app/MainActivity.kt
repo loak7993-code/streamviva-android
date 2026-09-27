@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,66 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/* ============================== splash ============================== */
+
+@Composable
+fun SilkSplash(onDone: () -> Unit) {
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1400)
+        onDone()
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    0f to Color(0xFF151022),
+                    0.5f to Bg,
+                    1f to BgDeep,
+                )
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row {
+                Text("Stream", color = White, fontSize = 44.sp, fontFamily = Serif)
+                Text(
+                    "Viva",
+                    color = IrisSoft, fontSize = 44.sp, fontFamily = Serif,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Box(
+                Modifier
+                    .width(120.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0x1FFFFFFF)),
+            ) {
+                Box(
+                    Modifier
+                        .width(46.dp)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, IrisSoft, Color.Transparent)
+                            )
+                        )
+                        .align(Alignment.CenterStart)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "now showing",
+                color = Text3, fontSize = 10.sp, fontFamily = Sans,
+                letterSpacing = 4.sp,
+            )
+        }
+    }
+}
 
 /* ================================ app ================================ */
 
@@ -87,6 +148,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App() {
+    var showSplash by remember { mutableStateOf(true) }
     var stack by remember { mutableStateOf<List<Screen>>(listOf(Screen.Home)) }
     var tab by remember { mutableStateOf(HomeTab.HOME) }
     var authFlow by remember { mutableStateOf<AuthFlow?>(
@@ -312,7 +374,17 @@ fun NetflixHome(
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    0f to Store.accent.copy(alpha = 0.07f),
+                    0.35f to Color.Transparent,
+                    1f to Bg,
+                )
+            ),
+    ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -332,24 +404,24 @@ fun NetflixHome(
                         item { Row("Continue watching", cont.mapNotNull { it.toMedia() }, onOpen, onOpenById, isContinue = true, contEntries = cont) }
                     }
                     if (topMovies.isNotEmpty()) {
-                        item { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true) }
+                        item { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
                     }
-                    if (topTv.isNotEmpty()) item { Row("Popular shows", topTv, onOpen, onOpenById) }
-                    if (topMovies.isNotEmpty()) item { Row("Popular movies", topMovies, onOpen, onOpenById) }
-                    if (airing.isNotEmpty()) item { Row("Airing today", airing, onOpen, onOpenById) }
-                    if (upcoming.isNotEmpty()) item { Row("Coming soon", upcoming, onOpen, onOpenById) }
+                    if (topTv.isNotEmpty()) item { Row("Popular shows", topTv, onOpen, onOpenById, index = 2) }
+                    if (topMovies.isNotEmpty()) item { Row("Popular movies", topMovies, onOpen, onOpenById, index = 3) }
+                    if (airing.isNotEmpty()) item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+                    if (upcoming.isNotEmpty()) item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
                     if (!loaded) item { HomeSkeleton() }
                 }
                 HomeTab.MOVIES -> {
                     item { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true) }
                     item { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
                     item { Row("Popular", topMovies, onOpen, onOpenById) }
-                    item { Row("Coming soon", upcoming, onOpen, onOpenById) }
+                    item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
                 }
                 HomeTab.SHOWS -> {
                     item { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true) }
                     item { Row("Popular", topTv, onOpen, onOpenById) }
-                    item { Row("Airing today", airing, onOpen, onOpenById) }
+                    item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
                 }
                 HomeTab.LIST -> {
                     item {
@@ -420,19 +492,21 @@ fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: 
         // tabs
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             HomeTab.entries.forEach { t ->
+                val active = tab == t
                 Text(
                     t.label,
-                    color = if (tab == t) White else Text2,
+                    color = if (active) White else Text2,
                     fontSize = 13.sp,
                     fontFamily = Sans,
-                    fontWeight = if (tab == t) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) Iris.copy(alpha = 0.22f) else Color.Transparent)
                         .clickable { onTab(t) }
-                        .padding(vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
                 )
             }
         }
@@ -477,6 +551,18 @@ fun Billboard(items: List<Tmdb.Media>, onOpen: (Tmdb.Media) -> Unit) {
                         .align(Alignment.BottomStart)
                         .padding(horizontal = 14.dp, vertical = 16.dp),
                 ) {
+                    if (page == 0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Iris.copy(alpha = 0.85f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text("TOP 10", color = White, fontSize = 9.sp, fontFamily = Sans, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        }
+                        Spacer(Modifier.height(7.dp))
+                    }
                     Text(
                         m.title,
                         color = White,
@@ -488,7 +574,7 @@ fun Billboard(items: List<Tmdb.Media>, onOpen: (Tmdb.Media) -> Unit) {
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "${m.year} · ★ ${"%.1f".format(m.rating)}",
+                        "${m.year} · ★ ${"%.1f".format(m.rating)} · ${if (m.type == "tv") "series" else "film"}",
                         color = Text2, fontSize = 12.sp, fontFamily = Sans,
                     )
                     Spacer(Modifier.height(12.dp))
@@ -567,6 +653,8 @@ fun ActionPill(
 
 /* ------------------------------ content row ------------------------------ */
 
+private val RowAnimEase = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
 @Composable
 fun Row(
     title: String,
@@ -576,8 +664,21 @@ fun Row(
     ranked: Boolean = false,
     isContinue: Boolean = false,
     contEntries: List<Store.ProgressEntry> = emptyList(),
+    index: Int = 0,
 ) {
-    Column(Modifier.padding(vertical = 10.dp)) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60L * index)
+        shown = true
+    }
+    Column(
+        Modifier
+            .padding(vertical = 10.dp)
+            .graphicsLayer {
+                alpha = if (shown) 1f else 0f
+                translationY = if (shown) 0f else 22f
+            },
+    ) {
         SectionHeader(title)
         LazyRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
