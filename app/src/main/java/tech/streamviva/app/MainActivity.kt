@@ -7,12 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,10 +26,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -49,7 +40,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
@@ -60,12 +50,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SilkSplash(onDone: () -> Unit) {
     LaunchedEffect(Unit) {
-        // prefetch home data while the splash shows — home renders instantly after
-        val prefetch = kotlinx.coroutines.coroutineScope {
-            launch { try { Tmdb.trendingMovies() } catch (_: Exception) {} }
-            launch { try { Tmdb.popularMovies() } catch (_: Exception) {} }
-        }
-        kotlinx.coroutines.delay(900)
+        kotlinx.coroutines.delay(1400)
         onDone()
     }
     Box(
@@ -136,12 +121,11 @@ sealed class Screen {
     data object Settings : Screen()
     data object LoginFromSettings : Screen()
     data object SignUpFromSettings : Screen()
-    data object Downloads : Screen()
     data object SwitchProfile : Screen()
     data class EditProfile(val profile: Store.Profile, val isNew: Boolean) : Screen()
 }
 
-enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("List") }
+enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("My List") }
 
 sealed class AuthFlow {
     data object Welcome : AuthFlow()
@@ -156,7 +140,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         Store.init(this)
-        Downloader.init(this)
         setContent {
             SilkTheme { App() }
         }
@@ -263,13 +246,6 @@ fun App() {
                     },
                     onEditProfile = { p -> push(Screen.EditProfile(p, false)) },
                     onAddProfile = { push(Screen.EditProfile(Store.Profile("new", "", "🎬", "#8D6BE0", "#5B3FA8"), true)) },
-                )
-                is Screen.Downloads -> DownloadsScreen(
-                    onBack = { pop() },
-                    onPlay = { item ->
-                        val f = java.io.File(Downloader.dir(), item.file)
-                        push(Screen.Player(item.title, f.toURI().toString()))
-                    },
                 )
                 is Screen.LoginFromSettings -> LoginFlow(onDone = { pop() }, onBack = { pop() })
                 is Screen.SignUpFromSettings -> SignUpFlow(onDone = { pop() }, onBack = { pop() })
@@ -387,15 +363,16 @@ fun NetflixHome(
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.coroutineScope {
-            launch { try { trending = Tmdb.trendingMovies() } catch (_: Exception) {} }
-            launch { try { topMovies = Tmdb.popularMovies() } catch (_: Exception) {} }
-            launch { try { topTv = Tmdb.topRatedTv() } catch (_: Exception) {} }
-            launch { try { airing = Tmdb.airingToday() } catch (_: Exception) {} }
-            launch { try { upcoming = Tmdb.upcomingMovies() } catch (_: Exception) {} }
-        }
+        try { trending = Tmdb.trendingMovies() } catch (_: Exception) {}
+        try { topMovies = Tmdb.popularMovies() } catch (_: Exception) {}
+        try { topTv = Tmdb.topRatedTv() } catch (_: Exception) {}
+        try { airing = Tmdb.airingToday() } catch (_: Exception) {}
+        try { upcoming = Tmdb.upcomingMovies() } catch (_: Exception) {}
         loaded = true
     }
+
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     Box(
         Modifier
@@ -408,246 +385,136 @@ fun NetflixHome(
                 )
             ),
     ) {
-        // each tab is its own LazyColumn, all kept alive in the Box —
-        // switching tabs is a pure visibility change (zero recomposition of cards)
-        TabContent(visible = tab == HomeTab.HOME) {
-            HomeTabList(
-                trending, topMovies, topTv, airing, upcoming, loaded,
-                onOpen, onOpenById,
-            )
-        }
-        TabContent(visible = tab == HomeTab.MOVIES) {
-            MoviesTabList(trending, topMovies, upcoming, onOpen, onOpenById)
-        }
-        TabContent(visible = tab == HomeTab.SHOWS) {
-            ShowsTabList(topTv, trending, airing, onOpen, onOpenById)
-        }
-        TabContent(visible = tab == HomeTab.LIST) {
-            ListTabList(onOpen, onOpenById)
-        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 60.dp),
+        ) {
+            // billboard
+            if (trending.isNotEmpty()) {
+                item { Billboard(trending.take(5), onOpen) }
+            } else {
+                item { Shimmer(Modifier.fillMaxWidth().height(430.dp), radius = 0) }
+            }
 
-        // minimal top bar
-        TopBarMinimal(scrolled = false, onSearch = onSearch, onSettings = onSettings, onSwitchProfile = onSwitchProfile)
-
-        // floating glass dock
-        BottomNavBar(
-            tab = tab,
-            onTab = onTab,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 14.dp),
-        )
-    }
-}
-
-@Composable
-private fun TabContent(visible: Boolean, content: @Composable () -> Unit) {
-    if (visible) {
-        content()
-    }
-}
-
-@Composable
-private fun HomeTabList(
-    trending: List<Tmdb.Media>,
-    topMovies: List<Tmdb.Media>,
-    topTv: List<Tmdb.Media>,
-    airing: List<Tmdb.Media>,
-    upcoming: List<Tmdb.Media>,
-    loaded: Boolean,
-    onOpen: (Tmdb.Media) -> Unit,
-    onOpenById: (String, String) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
-    ) {
-        if (trending.isNotEmpty()) {
-            item(key = "billboard") { Billboard(trending.take(5), onOpen) }
-        }
-        val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
-        if (cont.isNotEmpty()) {
-            item(key = "cont") {
-                Row("Continue watching", emptyList(), onOpen, onOpenById, isContinue = true, contEntries = cont)
+            when (tab) {
+                HomeTab.HOME -> {
+                    val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
+                    if (cont.isNotEmpty()) {
+                        item { Row("Continue watching", cont.mapNotNull { it.toMedia() }, onOpen, onOpenById, isContinue = true, contEntries = cont) }
+                    }
+                    if (topMovies.isNotEmpty()) {
+                        item { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
+                    }
+                    if (topTv.isNotEmpty()) item { Row("Popular shows", topTv, onOpen, onOpenById, index = 2) }
+                    if (topMovies.isNotEmpty()) item { Row("Popular movies", topMovies, onOpen, onOpenById, index = 3) }
+                    if (airing.isNotEmpty()) item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+                    if (upcoming.isNotEmpty()) item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
+                    if (!loaded) item { HomeSkeleton() }
+                }
+                HomeTab.MOVIES -> {
+                    item { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true) }
+                    item { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
+                    item { Row("Popular", topMovies, onOpen, onOpenById) }
+                    item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
+                }
+                HomeTab.SHOWS -> {
+                    item { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true) }
+                    item { Row("Popular", topTv, onOpen, onOpenById) }
+                    item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+                }
+                HomeTab.LIST -> {
+                    item {
+                        MyListSection(onOpen, onOpenById)
+                    }
+                }
             }
         }
-        if (topMovies.isNotEmpty()) {
-            item(key = "r1") { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
-        }
-        if (topTv.isNotEmpty()) {
-            item(key = "r2") { Row("Popular shows", topTv, onOpen, onOpenById, index = 2) }
-        }
-        if (topMovies.isNotEmpty()) {
-            item(key = "r3") { Row("Popular movies", topMovies, onOpen, onOpenById, index = 3) }
-        }
-        if (airing.isNotEmpty()) {
-            item(key = "r4") { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
-        }
-        if (upcoming.isNotEmpty()) {
-            item(key = "r5") { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
-        }
-        if (!loaded) {
-            item(key = "skel") { HomeSkeleton() }
-        }
+
+        // top bar: wordmark + tabs + search (netflix style, solidifies on scroll)
+        TopNav(
+            scrolled = scrolled,
+            tab = tab,
+            onTab = onTab,
+            onSearch = onSearch,
+            onSettings = onSettings,
+            onSwitchProfile = onSwitchProfile,
+        )
     }
 }
 
-@Composable
-private fun MoviesTabList(
-    trending: List<Tmdb.Media>,
-    topMovies: List<Tmdb.Media>,
-    upcoming: List<Tmdb.Media>,
-    onOpen: (Tmdb.Media) -> Unit,
-    onOpenById: (String, String) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
-    ) {
-        item(key = "m1") { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
-        item(key = "m2") { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
-        item(key = "m3") { Row("Popular", topMovies, onOpen, onOpenById) }
-        item(key = "m4") { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
-    }
-}
+private fun Store.ProgressEntry.toMedia(): Tmdb.Media? = null // handled via onOpenById
+
+/* ------------------------------ top nav ------------------------------ */
 
 @Composable
-private fun ShowsTabList(
-    topTv: List<Tmdb.Media>,
-    trending: List<Tmdb.Media>,
-    airing: List<Tmdb.Media>,
-    onOpen: (Tmdb.Media) -> Unit,
-    onOpenById: (String, String) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
-    ) {
-        item(key = "s1") { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true, index = 1) }
-        item(key = "s2") { Row("Popular", topTv, onOpen, onOpenById) }
-        item(key = "s3") { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
-    }
-}
-
-@Composable
-private fun ListTabList(
-    onOpen: (Tmdb.Media) -> Unit,
-    onOpenById: (String, String) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
-    ) {
-        item(key = "list") {
-            MyListSection(onOpen, onOpenById)
-        }
-    }
-}
-
-@Composable
-fun TopBarMinimal(scrolled: Boolean, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
-    Row(
+fun TopNav(scrolled: Boolean, tab: HomeTab, onTab: (HomeTab) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
+    Column(
         Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    0f to Bg.copy(alpha = 0.85f),
-                    1f to Color.Transparent,
-                )
-            )
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Wordmark(size = 22)
-        Spacer(Modifier.weight(1f))
-        Icon(
-            Icons.Rounded.Search,
-            contentDescription = "search",
-            tint = White,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable { onSearch() }
-                .padding(8.dp)
-                .size(19.dp),
-        )
-        Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).clickable { onSwitchProfile() }) {
-            AvatarView(avatar = Store.active.icon, size = 26, modifier = Modifier.size(26.dp))
-        }
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            Icons.Rounded.Settings,
-            contentDescription = "settings",
-            tint = White,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable { onSettings() }
-                .padding(8.dp)
-                .size(19.dp),
-        )
-    }
-}
-
-/* ------------------------ bottom navigation bar ------------------------ */
-
-@Composable
-fun BottomNavBar(
-    tab: HomeTab,
-    onTab: (HomeTab) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        color = Bg,
-        shadowElevation = 14.dp,
-        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+            .background(if (scrolled) Bg else Color(0x66000000)),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .statusBarsPadding()
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Wordmark(size = 21)
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Rounded.Search,
+                contentDescription = "search",
+                tint = White,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onSearch() }
+                    .padding(8.dp)
+                    .size(19.dp),
+            )
+            // active profile avatar
+            Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).clickable { onSwitchProfile() }) {
+                AvatarView(avatar = Store.active.icon, size = 26, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                Icons.Rounded.Settings,
+                contentDescription = "settings",
+                tint = White,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onSettings() }
+                    .padding(8.dp)
+                    .size(19.dp),
+            )
+        }
+        // tabs
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             HomeTab.entries.forEach { t ->
                 val active = tab == t
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Text(
+                    t.label,
+                    color = if (active) White else Text2,
+                    fontSize = 13.sp,
+                    fontFamily = Sans,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) Iris.copy(alpha = 0.22f) else Color.Transparent)
                         .clickable { onTab(t) }
-                        .padding(horizontal = 22.dp, vertical = 8.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(if (active) Store.accent.copy(alpha = 0.18f) else Color.Transparent)
-                            .padding(horizontal = 20.dp, vertical = 4.dp),
-                    ) {
-                        Icon(
-                            imageVector = when (t) {
-                                HomeTab.HOME -> Icons.Rounded.Home
-                                HomeTab.MOVIES -> Icons.Rounded.Movie
-                                HomeTab.SHOWS -> Icons.Rounded.Tv
-                                HomeTab.LIST -> Icons.Rounded.FavoriteBorder
-                            },
-                            contentDescription = t.label,
-                            tint = if (active) Store.accent else Text3,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                    Text(
-                        t.label,
-                        color = if (active) Store.accent else Text3,
-                        fontSize = 10.sp,
-                        fontFamily = Sans,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                }
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                )
             }
         }
+        Spacer(Modifier.height(6.dp))
     }
 }
+
+/* ----------------------------- billboard ----------------------------- */
 
 @Composable
 fun Billboard(items: List<Tmdb.Media>, onOpen: (Tmdb.Media) -> Unit) {
@@ -786,7 +653,7 @@ fun ActionPill(
 
 /* ------------------------------ content row ------------------------------ */
 
-private var rowsAnimatedOnce = false
+private val RowAnimEase = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 
 @Composable
 fun Row(
@@ -799,14 +666,10 @@ fun Row(
     contEntries: List<Store.ProgressEntry> = emptyList(),
     index: Int = 0,
 ) {
-    // stagger only on the very first load — instant on every tab switch
-    var shown by remember { mutableStateOf(rowsAnimatedOnce) }
+    var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (!rowsAnimatedOnce) {
-            kotlinx.coroutines.delay(60L * index)
-            shown = true
-            if (index >= 3) rowsAnimatedOnce = true
-        }
+        kotlinx.coroutines.delay(60L * index)
+        shown = true
     }
     Column(
         Modifier
@@ -822,15 +685,15 @@ fun Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (isContinue) {
-                itemsIndexed(contEntries, key = { _, e -> e.tmdbId + ":${e.season}:${e.episode}" }) { _, e ->
+                itemsIndexed(contEntries) { _, e ->
                     ContinueCard(e, onOpenById)
                 }
             } else if (ranked) {
-                itemsIndexed(items, key = { _, m -> "rank-${m.id}" }) { i, m ->
+                itemsIndexed(items) { i, m ->
                     Top10Card(m, i + 1, onOpen)
                 }
             } else {
-                items(items, key = { "${it.type}-${it.id}" }) { m -> CompactCard(m, onOpen) }
+                items(items) { m -> CompactCard(m, onOpen) }
             }
         }
     }
@@ -1028,7 +891,7 @@ fun SearchScreen(onOpen: (Tmdb.Media) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(m.title, color = Text1, fontSize = 14.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             "${m.year} · ${if (m.type == "tv") "show" else "film"} · ★ ${"%.1f".format(m.rating)}",
                             color = Text3, fontSize = 11.sp, fontFamily = Sans,
