@@ -583,7 +583,7 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                        .padding(horizontal = 14.dp, vertical = 3.dp),
                 ) {
                     Icon(
                         imageVector = when (t) {
@@ -594,9 +594,9 @@ fun GlassDock(
                         },
                         contentDescription = t.label,
                         tint = if (active) White else Color(0xFFC9C9D4),
-                        modifier = Modifier.size(15.dp),
+                        modifier = Modifier.size(16.dp),
                     )
-                    Spacer(Modifier.height(1.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         t.label,
                         color = if (active) White else Color(0xFFE2E2EA),
@@ -987,7 +987,7 @@ fun SearchScreen(onOpen: (Tmdb.Media) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(m.title, color = Text1, fontSize = 14.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Spacer(Modifier.height(1.dp))
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             "${m.year} · ${if (m.type == "tv") "show" else "film"} · ★ ${"%.1f".format(m.rating)}",
                             color = Text3, fontSize = 11.sp, fontFamily = Sans,
