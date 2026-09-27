@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -420,37 +423,48 @@ fun NetflixHome(
                 item { Shimmer(Modifier.fillMaxWidth().height(430.dp), radius = 0) }
             }
 
-            when (tab) {
+            item(key = "tab-${tab}") {
+            androidx.compose.animation.AnimatedContent(
+                targetState = tab,
+                transitionSpec = {
+                    (fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
+                        fadeOut(androidx.compose.animation.core.tween(120)))
+                },
+                label = "tabswitch",
+            ) { currentTab ->
+                Column {
+            when (currentTab) {
                 HomeTab.HOME -> {
                     val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
                     if (cont.isNotEmpty()) {
-                        item { Row("Continue watching", cont.mapNotNull { it.toMedia() }, onOpen, onOpenById, isContinue = true, contEntries = cont) }
+                        Row("Continue watching", cont.mapNotNull { it.toMedia() }, onOpen, onOpenById, isContinue = true, contEntries = cont)
                     }
                     if (topMovies.isNotEmpty()) {
-                        item { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
+                        Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1)
                     }
-                    if (topTv.isNotEmpty()) item { Row("Popular shows", topTv, onOpen, onOpenById, index = 2) }
-                    if (topMovies.isNotEmpty()) item { Row("Popular movies", topMovies, onOpen, onOpenById, index = 3) }
-                    if (airing.isNotEmpty()) item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
-                    if (upcoming.isNotEmpty()) item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
-                    if (!loaded) item { HomeSkeleton() }
+                    if (topTv.isNotEmpty()) Row("Popular shows", topTv, onOpen, onOpenById, index = 2)
+                    if (topMovies.isNotEmpty()) Row("Popular movies", topMovies, onOpen, onOpenById, index = 3)
+                    if (airing.isNotEmpty()) Row("Airing today", airing, onOpen, onOpenById, index = 4)
+                    if (upcoming.isNotEmpty()) Row("Coming soon", upcoming, onOpen, onOpenById, index = 5)
+                    if (!loaded) HomeSkeleton()
                 }
                 HomeTab.MOVIES -> {
-                    item { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true) }
-                    item { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
-                    item { Row("Popular", topMovies, onOpen, onOpenById) }
-                    item { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
+                    Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true)
+                    Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById)
+                    Row("Popular", topMovies, onOpen, onOpenById)
+                    Row("Coming soon", upcoming, onOpen, onOpenById, index = 5)
                 }
                 HomeTab.SHOWS -> {
-                    item { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true) }
-                    item { Row("Popular", topTv, onOpen, onOpenById) }
-                    item { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+                    Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true)
+                    Row("Popular", topTv, onOpen, onOpenById)
+                    Row("Airing today", airing, onOpen, onOpenById, index = 4)
                 }
                 HomeTab.LIST -> {
-                    item {
-                        MyListSection(onOpen, onOpenById)
-                    }
+                    MyListSection(onOpen, onOpenById)
                 }
+            }
+                }
+            }
             }
         }
 
@@ -785,15 +799,15 @@ fun Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (isContinue) {
-                itemsIndexed(contEntries) { _, e ->
+                itemsIndexed(contEntries, key = { _, e -> e.tmdbId + ":${e.season}:${e.episode}" }) { _, e ->
                     ContinueCard(e, onOpenById)
                 }
             } else if (ranked) {
-                itemsIndexed(items) { i, m ->
+                itemsIndexed(items, key = { _, m -> "rank-${m.id}" }) { i, m ->
                     Top10Card(m, i + 1, onOpen)
                 }
             } else {
-                items(items) { m -> CompactCard(m, onOpen) }
+                items(items, key = { "${it.type}-${it.id}" }) { m -> CompactCard(m, onOpen) }
             }
         }
     }
