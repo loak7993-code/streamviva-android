@@ -563,7 +563,7 @@ fun GlassDock(
                 .align(Alignment.TopCenter),
         )
         Row(
-            Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -583,7 +583,7 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
                 ) {
                     Icon(
                         imageVector = when (t) {
@@ -594,13 +594,13 @@ fun GlassDock(
                         },
                         contentDescription = t.label,
                         tint = if (active) White else Color(0xFFC9C9D4),
-                        modifier = Modifier.size(17.dp),
+                        modifier = Modifier.size(15.dp),
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(1.dp))
                     Text(
                         t.label,
                         color = if (active) White else Color(0xFFE2E2EA),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontFamily = Sans,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     )
@@ -987,7 +987,7 @@ fun SearchScreen(onOpen: (Tmdb.Media) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(m.title, color = Text1, fontSize = 14.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(1.dp))
                         Text(
                             "${m.year} · ${if (m.type == "tv") "show" else "film"} · ★ ${"%.1f".format(m.rating)}",
                             color = Text3, fontSize = 11.sp, fontFamily = Sans,
