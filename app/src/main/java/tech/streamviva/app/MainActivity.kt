@@ -541,10 +541,10 @@ fun GlassDock(
             )
             .shadow(16.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x44000000), spotColor = Color(0x66000000)),
     ) {
-        // specular highlight along the top edge
+        // specular highlight along the top edge (matchParentSize: doesn't expand the dock)
         Box(
             Modifier
-                .fillMaxWidth()
+                .matchParentSize()
                 .height(1.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(
