@@ -435,6 +435,7 @@ fun NetflixHome(
             onTab = onTab,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .zIndex(10f)
                 .navigationBarsPadding()
                 .padding(bottom = 14.dp),
         )
@@ -442,11 +443,9 @@ fun NetflixHome(
 }
 
 @Composable
-private fun BoxScope.TabContent(visible: Boolean, content: @Composable () -> Unit) {
+private fun TabContent(visible: Boolean, content: @Composable () -> Unit) {
     if (visible) {
-        Box(Modifier.fillMaxSize().zIndex(1f)) {
-            content()
-        }
+        content()
     }
 }
 
@@ -463,7 +462,7 @@ private fun HomeTabList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+        contentPadding = PaddingValues(top = 80.dp, bottom = 110.dp),
     ) {
         if (trending.isNotEmpty()) {
             item(key = "billboard") { Billboard(trending.take(5), onOpen) }
@@ -505,7 +504,7 @@ private fun MoviesTabList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+        contentPadding = PaddingValues(top = 80.dp, bottom = 110.dp),
     ) {
         item(key = "m1") { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
         item(key = "m2") { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
@@ -524,7 +523,7 @@ private fun ShowsTabList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+        contentPadding = PaddingValues(top = 80.dp, bottom = 110.dp),
     ) {
         item(key = "s1") { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true, index = 1) }
         item(key = "s2") { Row("Popular", topTv, onOpen, onOpenById) }
@@ -539,7 +538,7 @@ private fun ListTabList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+        contentPadding = PaddingValues(top = 80.dp, bottom = 110.dp),
     ) {
         item(key = "list") {
             MyListSection(onOpen, onOpenById)
@@ -552,6 +551,7 @@ fun TopBarMinimal(scrolled: Boolean, onSearch: () -> Unit, onSettings: () -> Uni
     Row(
         Modifier
             .fillMaxWidth()
+            .zIndex(10f)
             .background(
                 Brush.verticalGradient(
                     0f to Bg.copy(alpha = 0.85f),
