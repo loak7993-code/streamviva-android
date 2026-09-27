@@ -50,7 +50,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun SilkSplash(onDone: () -> Unit) {
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1400)
+        // prefetch home data while the splash shows — home renders instantly after
+        val prefetch = kotlinx.coroutines.coroutineScope {
+            launch { try { Tmdb.trendingMovies() } catch (_: Exception) {} }
+            launch { try { Tmdb.popularMovies() } catch (_: Exception) {} }
+        }
+        kotlinx.coroutines.delay(900)
         onDone()
     }
     Box(
@@ -121,6 +126,7 @@ sealed class Screen {
     data object Settings : Screen()
     data object LoginFromSettings : Screen()
     data object SignUpFromSettings : Screen()
+    data object Downloads : Screen()
     data object SwitchProfile : Screen()
     data class EditProfile(val profile: Store.Profile, val isNew: Boolean) : Screen()
 }
@@ -140,6 +146,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         Store.init(this)
+        Downloader.init(this)
         setContent {
             SilkTheme { App() }
         }
@@ -246,6 +253,13 @@ fun App() {
                     },
                     onEditProfile = { p -> push(Screen.EditProfile(p, false)) },
                     onAddProfile = { push(Screen.EditProfile(Store.Profile("new", "", "🎬", "#8D6BE0", "#5B3FA8"), true)) },
+                )
+                is Screen.Downloads -> DownloadsScreen(
+                    onBack = { pop() },
+                    onPlay = { item ->
+                        val f = java.io.File(Downloader.dir(), item.file)
+                        push(Screen.Player(item.title, f.toURI().toString()))
+                    },
                 )
                 is Screen.LoginFromSettings -> LoginFlow(onDone = { pop() }, onBack = { pop() })
                 is Screen.SignUpFromSettings -> SignUpFlow(onDone = { pop() }, onBack = { pop() })
@@ -363,11 +377,14 @@ fun NetflixHome(
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        try { trending = Tmdb.trendingMovies() } catch (_: Exception) {}
-        try { topMovies = Tmdb.popularMovies() } catch (_: Exception) {}
-        try { topTv = Tmdb.topRatedTv() } catch (_: Exception) {}
-        try { airing = Tmdb.airingToday() } catch (_: Exception) {}
-        try { upcoming = Tmdb.upcomingMovies() } catch (_: Exception) {}
+        // all five rows load in parallel; each renders as soon as it lands
+        kotlinx.coroutines.coroutineScope {
+            launch { try { trending = Tmdb.trendingMovies() } catch (_: Exception) {} }
+            launch { try { topMovies = Tmdb.popularMovies() } catch (_: Exception) {} }
+            launch { try { topTv = Tmdb.topRatedTv() } catch (_: Exception) {} }
+            launch { try { airing = Tmdb.airingToday() } catch (_: Exception) {} }
+            launch { try { upcoming = Tmdb.upcomingMovies() } catch (_: Exception) {} }
+        }
         loaded = true
     }
 

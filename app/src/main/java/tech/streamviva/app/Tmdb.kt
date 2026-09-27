@@ -1,17 +1,55 @@
 package tech.streamviva.app
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+
+/**
+ * Session TMDB cache — rows load instantly on tab switches and
+ * back-navigation; first load kicks off in parallel and is shared
+ * with the splash so the app renders the moment data lands.
+ */
+object TmdbCache {
+    private val mem = ConcurrentHashMap<String, Any>()
+    private val inflight = ConcurrentHashMap<String, Deferred<Any>>()
+    private val scope = MainScope()
+
+    @Suppress("UNCHECKED_CAST")
+    suspend fun <T> cached(key: String, fetcher: suspend () -> T): T {
+        (mem[key] as? T)?.let { return it }
+        @Suppress("UNCHECKED_CAST")
+        val deferred = inflight.getOrPut(key) {
+            scope.async<Any> {
+                try {
+                    val v = fetcher()
+                    mem[key] = v as Any
+                    v
+                } finally {
+                    inflight.remove(key)
+                }
+            }
+        }
+        return deferred.await() as T
+    }
+
+    fun clear() {
+        mem.clear()
+    }
+}
 
 /** Native TMDB client — browse/search/details/discover/credits. */
 object Tmdb {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
     private const val TOKEN =
@@ -32,6 +70,7 @@ object Tmdb {
     )
 
     data class Season(val number: Int, val id: Long, val episodeCount: Int)
+    data class Genre(val id: Int, val name: String)
 
     data class Episode(
         val number: Int,
@@ -48,7 +87,12 @@ object Tmdb {
         val profile: String?,
     )
 
-    data class Genre(val id: Int, val name: String)
+    data class DetailsResult(
+        val imdb: String,
+        val seasons: List<Season>,
+        val genres: List<Genre>,
+        val tagline: String?,
+    )
 
     private fun get(path: String, params: Map<String, String> = emptyMap()): JSONObject {
         val url = buildString {
@@ -88,14 +132,27 @@ object Tmdb {
         }
     }
 
-    suspend fun trendingMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/trending/movie/week"), "movie") }
-    suspend fun trendingTv(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/trending/tv/week"), "tv") }
-    suspend fun popularMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/movie/popular"), "movie") }
-    suspend fun topRatedTv(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/tv/top_rated"), "tv") }
-    suspend fun airingToday(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/tv/airing_today"), "tv") }
-    suspend fun upcomingMovies(): List<Media> = withContext(Dispatchers.IO) { parseList(get("/movie/upcoming"), "movie") }
+    // cached row data — instant on tab switch, single flight on first load
+    suspend fun trendingMovies(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("trendM") { parseList(get("/trending/movie/week"), "movie") }
+    }
+    suspend fun trendingTv(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("trendT") { parseList(get("/trending/tv/week"), "tv") }
+    }
+    suspend fun popularMovies(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("popularM") { parseList(get("/movie/popular"), "movie") }
+    }
+    suspend fun topRatedTv(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("topTv") { parseList(get("/tv/top_rated"), "tv") }
+    }
+    suspend fun airingToday(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("airing") { parseList(get("/tv/airing_today"), "tv") }
+    }
+    suspend fun upcomingMovies(): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        TmdbCache.cached("upcoming") { parseList(get("/movie/upcoming"), "movie") }
+    }
 
-    suspend fun search(query: String): List<Media> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String): List<Media> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         val j = get("/search/multi", mapOf("query" to query, "include_adult" to "false"))
         val arr = j.optJSONArray("results") ?: org.json.JSONArray()
         (0 until arr.length()).mapNotNull { i ->
@@ -117,7 +174,7 @@ object Tmdb {
     }
 
     /** fetch a Media by type + tmdb id (for continue watching / history) */
-    suspend fun byId(type: String, tmdbId: Long): Media? = withContext(Dispatchers.IO) {
+    suspend fun byId(type: String, tmdbId: Long): Media? = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
             val j = get("/$type/$tmdbId")
             val date = j.optString(if (type == "tv") "first_air_date" else "release_date")
@@ -134,17 +191,10 @@ object Tmdb {
         } catch (e: Exception) { null }
     }
 
-    data class DetailsResult(
-        val imdb: String,
-        val seasons: List<Season>,
-        val genres: List<Genre>,
-        val tagline: String?,
-    )
-
     /** imdb id + seasons + genres. TMDB stopped returning imdb_id on /tv/{id}
      *  for shows — fall back to /external_ids when it's blank. */
     suspend fun details(type: String, tmdbId: Long): DetailsResult =
-        withContext(Dispatchers.IO) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             val j = get("/$type/$tmdbId")
             var imdb = j.optString("imdb_id", "")
             if (imdb.isBlank()) {
@@ -178,7 +228,7 @@ object Tmdb {
 
     /** full episodes with names + stills */
     suspend fun episodes(tvId: Long, seasonNumber: Int): List<Episode> =
-        withContext(Dispatchers.IO) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             val j = get("/tv/$tvId/season/$seasonNumber")
             val arr = j.optJSONArray("episodes") ?: org.json.JSONArray()
             (0 until arr.length()).map { i ->
@@ -196,7 +246,7 @@ object Tmdb {
 
     /** more like this */
     suspend fun recommendations(type: String, tmdbId: Long): List<Media> =
-        withContext(Dispatchers.IO) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             try {
                 parseList(get("/$type/$tmdbId/recommendations"), type)
             } catch (e: Exception) {
@@ -206,7 +256,7 @@ object Tmdb {
 
     /** top cast */
     suspend fun credits(type: String, tmdbId: Long): List<CastMember> =
-        withContext(Dispatchers.IO) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             try {
                 val j = get("/$type/$tmdbId/credits")
                 val arr = j.optJSONArray("cast") ?: org.json.JSONArray()
@@ -227,9 +277,9 @@ object Tmdb {
     private var movieGenres: List<Genre> = emptyList()
     private var tvGenres: List<Genre> = emptyList()
 
-    suspend fun genres(type: String): List<Genre> = withContext(Dispatchers.IO) {
-        val cached = if (type == "tv") tvGenres else movieGenres
-        if (cached.isNotEmpty()) return@withContext cached
+    suspend fun genres(type: String): List<Genre> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val cachedGenres = if (type == "tv") tvGenres else movieGenres
+        if (cachedGenres.isNotEmpty()) return@withContext cachedGenres
         try {
             val j = get("/genre/$type/list")
             val arr = j.optJSONArray("genres") ?: org.json.JSONArray()
@@ -240,16 +290,5 @@ object Tmdb {
             if (type == "tv") tvGenres = list else movieGenres = list
             list
         } catch (e: Exception) { emptyList() }
-    }
-
-    /** browse by genre */
-    suspend fun byGenre(type: String, genreId: Int, page: Int = 1): List<Media> =
-        withContext(Dispatchers.IO) {
-            try {
-                parseList(
-                    get("/discover/$type", mapOf("with_genres" to genreId.toString(), "page" to page.toString(), "sort_by" to "popularity.desc")),
-                    type,
-                )
-            } catch (e: Exception) { emptyList() }
     }
 }

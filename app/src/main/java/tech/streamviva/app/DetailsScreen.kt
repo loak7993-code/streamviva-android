@@ -42,6 +42,11 @@ fun DetailsScreen(
     var resolving by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var isFav by remember { mutableStateOf(Store.isFavorite(media)) }
+    var showQuality by remember { mutableStateOf(false) }
+    var showEpisodeSelect by remember { mutableStateOf(false) }
+    var downloadQualities by remember { mutableStateOf<List<Downloader.Quality>>(emptyList()) }
+    var pendingEpisodes by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
+    var resolvingQ by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(media.id) {
@@ -75,6 +80,46 @@ fun DetailsScreen(
         }
     }
 
+    if (showQuality) {
+        DownloadQualityDialog(
+            qualities = downloadQualities,
+            onPick = { q ->
+                showQuality = false
+                if (pendingEpisodes.isEmpty()) {
+                    Downloader.enqueue(media, null, null, q.url, q.label)
+                } else {
+                    pendingEpisodes.forEach { (sn, en) ->
+                        Downloader.enqueue(media, sn, en, q.url, q.label)
+                    }
+                    pendingEpisodes = emptyList()
+                }
+            },
+            onDismiss = { showQuality = false },
+        )
+    }
+    if (showEpisodeSelect) {
+        EpisodeSelectDialog(
+            media = media,
+            seasons = seasons,
+            episodes = episodes,
+            onConfirm = { pairs ->
+                showEpisodeSelect = false
+                if (pairs.isNotEmpty()) {
+                    pendingEpisodes = pairs
+                    resolvingQ = true
+                    scope.launch {
+                        val (s0, e0) = pairs.first()
+                        downloadQualities = Downloader.qualities(media, s0, e0)
+                        resolvingQ = false
+                        if (downloadQualities.isNotEmpty()) showQuality = true
+                        else error = "no downloadable stream"
+                    }
+                }
+            },
+            onDismiss = { showEpisodeSelect = false },
+        )
+    }
+
     Box(Modifier.fillMaxSize().background(Bg)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -100,7 +145,7 @@ fun DetailsScreen(
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     AsyncImage(
-                        model = media.poster?.let { IMG + it },
+                        model = media.poster?.let { IMG_DETAIL + it },
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.width(110.dp).height(165.dp).clip(RoundedCornerShape(14.dp)),
@@ -195,28 +240,57 @@ fun DetailsScreen(
                                 media.type == "movie" ||
                                     (selectedSeason != null && episodes[selectedSeason]?.isNotEmpty() == true)
                                 )
-                            Button(
-                                onClick = {
-                                    if (media.type == "movie") resolve(imdb)
-                                    else episodes[selectedSeason]?.firstOrNull()?.let { resolve(imdb, selectedSeason, it.number) }
-                                },
-                                enabled = canPlay,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Iris, contentColor = White,
-                                    disabledContainerColor = SurfaceHi, disabledContentColor = Text3,
-                                ),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                            ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    if (imdb.isBlank()) "loading…"
-                                    else if (resumeEntry != null && resumeEntry.positionMs > 10_000)
-                                        "Resume · ${(resumeEntry.positionMs / 60000)} min"
-                                    else "Play now",
-                                    fontSize = 15.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold,
-                                )
+                            Row(Modifier.fillMaxWidth()) {
+                                Button(
+                                    onClick = {
+                                        if (media.type == "movie") resolve(imdb)
+                                        else episodes[selectedSeason]?.firstOrNull()?.let { resolve(imdb, selectedSeason, it.number) }
+                                    },
+                                    enabled = canPlay,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Iris, contentColor = White,
+                                        disabledContainerColor = SurfaceHi, disabledContentColor = Text3,
+                                    ),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.weight(1f).height(52.dp),
+                                ) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        if (imdb.isBlank()) "loading…"
+                                        else if (resumeEntry != null && resumeEntry.positionMs > 10_000)
+                                            "Resume · ${(resumeEntry.positionMs / 60000)} min"
+                                        else "Play now",
+                                        fontSize = 15.sp, fontFamily = Sans, fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        if (media.type == "movie") {
+                                            resolvingQ = true
+                                            scope.launch {
+                                                downloadQualities = Downloader.qualities(media, null, null)
+                                                resolvingQ = false
+                                                if (downloadQualities.isNotEmpty()) showQuality = true
+                                                else error = "no downloadable stream"
+                                            }
+                                        } else {
+                                            showEpisodeSelect = true
+                                        }
+                                    },
+                                    enabled = canPlay && !resolvingQ,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceLine),
+                                    modifier = Modifier.height(52.dp),
+                                ) {
+                                    if (resolvingQ) {
+                                        CircularProgressIndicator(color = Iris, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text("↓", fontSize = 20.sp)
+                                    }
+                                }
                             }
                         }
                     }

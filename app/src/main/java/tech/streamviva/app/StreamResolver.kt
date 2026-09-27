@@ -42,6 +42,57 @@ object StreamResolver {
             )
         )
 
+    /** resolve without proxy rewrapping — for downloads (raw variant urls) */
+    suspend fun resolveForDownload(media: Tmdb.Media, season: Int?, episode: Int?): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val params: Map<String, String> = if (media.type == "movie") {
+                    mapOf("type" to "movie", "imdb" to media._imdb, "stream_urls" to "")
+                } else {
+                    mapOf(
+                        "type" to "tv", "imdb" to media._imdb,
+                        "season" to (season ?: 1).toString(),
+                        "episode" to (episode ?: 1).toString(),
+                        "stream_urls" to "",
+                    )
+                }
+                val url = buildString {
+                    append(API)
+                    append('?')
+                    append(params.entries.joinToString("&") {
+                        "${java.net.URLEncoder.encode(it.key, "UTF-8")}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+                    })
+                }
+                val body = fetchJson(url)
+                val data = body.getJSONObject("data")
+                val su = data.opt("stream_urls")
+                val urls: List<String> = when (su) {
+                    is org.json.JSONArray -> (0 until su.length()).map { su.getString(it) }.filter { it.isNotBlank() }
+                    is String -> {
+                        val vs = body.getJSONObject("vs")
+                        val wasmB64 = vs.optString("wasm")
+                        val wasm = if (vs.optString("wasm_url").isNotBlank()) fetchBytes(vs.optString("wasm_url")) else b64decode(wasmB64)
+                        val plain = WasmDecryptor.decrypt(wasm, b64decode(su))
+                        String(plain, Charsets.UTF_8).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+                    }
+                    else -> return@withContext null
+                }
+                if (urls.isEmpty()) return@withContext null
+                for (raw in urls) {
+                    val host = try {
+                        java.net.URI(raw).let { "${it.scheme}://${it.host}" }
+                    } catch (e: Exception) { continue }
+                    val token = fetchToken(host)
+                    if (token.isNotBlank()) {
+                        return@withContext raw + (if (raw.contains('?')) "&" else "?") + "token=" + token
+                    }
+                }
+                urls[0]
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     private suspend fun resolve(params: Map<String, String>): Resolved =
         withContext(Dispatchers.IO) {
             val url = buildString {
