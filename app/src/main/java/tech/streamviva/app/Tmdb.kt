@@ -24,20 +24,25 @@ object TmdbCache {
 
     @Suppress("UNCHECKED_CAST")
     suspend fun <T> cached(key: String, fetcher: suspend () -> T): T {
-        (mem[key] as? T)?.let { return it }
-        @Suppress("UNCHECKED_CAST")
-        val deferred = inflight.getOrPut(key) {
-            scope.async<Any> {
-                try {
-                    val v = fetcher()
-                    mem[key] = v as Any
-                    v
-                } finally {
-                    inflight.remove(key)
+        try {
+            (mem[key] as? T)?.let { return it }
+            @Suppress("UNCHECKED_CAST")
+            val deferred = inflight.getOrPut(key) {
+                scope.async<Any> {
+                    try {
+                        val v = fetcher()
+                        mem[key] = v as Any
+                        v
+                    } finally {
+                        inflight.remove(key)
+                    }
                 }
             }
+            return deferred.await() as T
+        } catch (e: Exception) {
+            // cache machinery failed — fall through to a direct fetch
+            return fetcher()
         }
-        return deferred.await() as T
     }
 
     fun clear() {

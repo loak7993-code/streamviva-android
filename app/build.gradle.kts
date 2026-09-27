@@ -11,8 +11,8 @@ android {
         applicationId = "tech.streamviva.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "2.2.0"
+        versionCode = 13
+        versionName = "2.2.1"
     }
 
     signingConfigs {
@@ -25,12 +25,7 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
         }
     }
