@@ -133,7 +133,7 @@ sealed class Screen {
     data class EditProfile(val profile: Store.Profile, val isNew: Boolean) : Screen()
 }
 
-enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("My List") }
+enum class HomeTab(val label: String) { HOME("Home"), MOVIES("Movies"), SHOWS("Shows"), LIST("List") }
 
 sealed class AuthFlow {
     data object Welcome : AuthFlow()
