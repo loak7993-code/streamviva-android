@@ -11,8 +11,8 @@ android {
         applicationId = "tech.streamviva.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 25
-        versionName = "2.4.1"
+        versionCode = 26
+        versionName = "2.5.0"
     }
 
     signingConfigs {

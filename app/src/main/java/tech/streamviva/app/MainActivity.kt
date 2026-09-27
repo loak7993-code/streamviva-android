@@ -49,6 +49,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
@@ -386,7 +387,6 @@ fun NetflixHome(
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // all five rows load in parallel; each renders as soon as it lands
         kotlinx.coroutines.coroutineScope {
             launch { try { trending = Tmdb.trendingMovies() } catch (_: Exception) {} }
             launch { try { topMovies = Tmdb.popularMovies() } catch (_: Exception) {} }
@@ -396,9 +396,6 @@ fun NetflixHome(
         }
         loaded = true
     }
-
-    val listState = rememberLazyListState()
-    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     Box(
         Modifier
@@ -411,67 +408,28 @@ fun NetflixHome(
                 )
             ),
     ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 110.dp),
-        ) {
-            // billboard
-            if (trending.isNotEmpty()) {
-                item { Billboard(trending.take(5), onOpen) }
-            } else {
-                item { Shimmer(Modifier.fillMaxWidth().height(430.dp), radius = 0) }
-            }
-
-            item(key = "tab-${tab}") {
-            androidx.compose.animation.AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    (fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
-                        fadeOut(androidx.compose.animation.core.tween(120)))
-                },
-                label = "tabswitch",
-            ) { currentTab ->
-                Column {
-            when (currentTab) {
-                HomeTab.HOME -> {
-                    val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
-                    if (cont.isNotEmpty()) {
-                        Row("Continue watching", cont.mapNotNull { it.toMedia() }, onOpen, onOpenById, isContinue = true, contEntries = cont)
-                    }
-                    if (topMovies.isNotEmpty()) {
-                        Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1)
-                    }
-                    if (topTv.isNotEmpty()) Row("Popular shows", topTv, onOpen, onOpenById, index = 2)
-                    if (topMovies.isNotEmpty()) Row("Popular movies", topMovies, onOpen, onOpenById, index = 3)
-                    if (airing.isNotEmpty()) Row("Airing today", airing, onOpen, onOpenById, index = 4)
-                    if (upcoming.isNotEmpty()) Row("Coming soon", upcoming, onOpen, onOpenById, index = 5)
-                    if (!loaded) HomeSkeleton()
-                }
-                HomeTab.MOVIES -> {
-                    Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true)
-                    Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById)
-                    Row("Popular", topMovies, onOpen, onOpenById)
-                    Row("Coming soon", upcoming, onOpen, onOpenById, index = 5)
-                }
-                HomeTab.SHOWS -> {
-                    Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true)
-                    Row("Popular", topTv, onOpen, onOpenById)
-                    Row("Airing today", airing, onOpen, onOpenById, index = 4)
-                }
-                HomeTab.LIST -> {
-                    MyListSection(onOpen, onOpenById)
-                }
-            }
-                }
-            }
-            }
+        // each tab is its own LazyColumn, all kept alive in the Box —
+        // switching tabs is a pure visibility change (zero recomposition of cards)
+        TabContent(visible = tab == HomeTab.HOME) {
+            HomeTabList(
+                trending, topMovies, topTv, airing, upcoming, loaded,
+                onOpen, onOpenById,
+            )
+        }
+        TabContent(visible = tab == HomeTab.MOVIES) {
+            MoviesTabList(trending, topMovies, upcoming, onOpen, onOpenById)
+        }
+        TabContent(visible = tab == HomeTab.SHOWS) {
+            ShowsTabList(topTv, trending, airing, onOpen, onOpenById)
+        }
+        TabContent(visible = tab == HomeTab.LIST) {
+            ListTabList(onOpen, onOpenById)
         }
 
-        // minimal top bar: name left, actions right
-        TopBarMinimal(scrolled = scrolled, onSearch = onSearch, onSettings = onSettings, onSwitchProfile = onSwitchProfile)
+        // minimal top bar
+        TopBarMinimal(scrolled = false, onSearch = onSearch, onSettings = onSettings, onSwitchProfile = onSwitchProfile)
 
-        // floating glass dock at the bottom
+        // floating glass dock
         GlassDock(
             tab = tab,
             onTab = onTab,
@@ -483,9 +441,114 @@ fun NetflixHome(
     }
 }
 
-private fun Store.ProgressEntry.toMedia(): Tmdb.Media? = null // handled via onOpenById
+@Composable
+private fun BoxScope.TabContent(visible: Boolean, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(if (visible) 1f else 0f)
+            .alpha(if (visible) 1f else 0f),
+    ) {
+        content()
+    }
+}
 
-/* ------------------------- minimal top bar ------------------------- */
+@Composable
+private fun HomeTabList(
+    trending: List<Tmdb.Media>,
+    topMovies: List<Tmdb.Media>,
+    topTv: List<Tmdb.Media>,
+    airing: List<Tmdb.Media>,
+    upcoming: List<Tmdb.Media>,
+    loaded: Boolean,
+    onOpen: (Tmdb.Media) -> Unit,
+    onOpenById: (String, String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+    ) {
+        if (trending.isNotEmpty()) {
+            item(key = "billboard") { Billboard(trending.take(5), onOpen) }
+        }
+        val cont = Store.progress.values.sortedByDescending { p -> p.updatedAt }.take(10)
+        if (cont.isNotEmpty()) {
+            item(key = "cont") {
+                Row("Continue watching", emptyList(), onOpen, onOpenById, isContinue = true, contEntries = cont)
+            }
+        }
+        if (topMovies.isNotEmpty()) {
+            item(key = "r1") { Row("Top 10 movies today", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
+        }
+        if (topTv.isNotEmpty()) {
+            item(key = "r2") { Row("Popular shows", topTv, onOpen, onOpenById, index = 2) }
+        }
+        if (topMovies.isNotEmpty()) {
+            item(key = "r3") { Row("Popular movies", topMovies, onOpen, onOpenById, index = 3) }
+        }
+        if (airing.isNotEmpty()) {
+            item(key = "r4") { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+        }
+        if (upcoming.isNotEmpty()) {
+            item(key = "r5") { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
+        }
+        if (!loaded) {
+            item(key = "skel") { HomeSkeleton() }
+        }
+    }
+}
+
+@Composable
+private fun MoviesTabList(
+    trending: List<Tmdb.Media>,
+    topMovies: List<Tmdb.Media>,
+    upcoming: List<Tmdb.Media>,
+    onOpen: (Tmdb.Media) -> Unit,
+    onOpenById: (String, String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+    ) {
+        item(key = "m1") { Row("Top 10 movies", topMovies.take(10), onOpen, onOpenById, ranked = true, index = 1) }
+        item(key = "m2") { Row("Trending", trending.filter { it.type == "movie" }, onOpen, onOpenById) }
+        item(key = "m3") { Row("Popular", topMovies, onOpen, onOpenById) }
+        item(key = "m4") { Row("Coming soon", upcoming, onOpen, onOpenById, index = 5) }
+    }
+}
+
+@Composable
+private fun ShowsTabList(
+    topTv: List<Tmdb.Media>,
+    trending: List<Tmdb.Media>,
+    airing: List<Tmdb.Media>,
+    onOpen: (Tmdb.Media) -> Unit,
+    onOpenById: (String, String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+    ) {
+        item(key = "s1") { Row("Top 10 shows", topTv.take(10), onOpen, onOpenById, ranked = true, index = 1) }
+        item(key = "s2") { Row("Popular", topTv, onOpen, onOpenById) }
+        item(key = "s3") { Row("Airing today", airing, onOpen, onOpenById, index = 4) }
+    }
+}
+
+@Composable
+private fun ListTabList(
+    onOpen: (Tmdb.Media) -> Unit,
+    onOpenById: (String, String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 60.dp, bottom = 110.dp),
+    ) {
+        item(key = "list") {
+            MyListSection(onOpen, onOpenById)
+        }
+    }
+}
 
 @Composable
 fun TopBarMinimal(scrolled: Boolean, onSearch: () -> Unit, onSettings: () -> Unit, onSwitchProfile: () -> Unit) {
