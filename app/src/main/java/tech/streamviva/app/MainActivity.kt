@@ -559,7 +559,7 @@ fun GlassDock(
                 .align(Alignment.TopCenter),
         )
         Row(
-            Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            Modifier.padding(horizontal = 5.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -578,7 +578,7 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 13.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                 ) {
                     Text(
                         t.label,
