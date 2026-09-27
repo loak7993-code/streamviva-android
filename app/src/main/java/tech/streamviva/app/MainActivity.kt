@@ -526,8 +526,8 @@ fun GlassDock(
             .clip(RoundedCornerShape(28.dp))
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0x66222228),
-                    1f to Color(0x591C1C22),
+                    0f to Color(0x8C22222A),
+                    1f to Color(0x7E1C1C24),
                 )
             )
             .border(
@@ -578,14 +578,14 @@ fun GlassDock(
                             )
                         )
                         .clickable { onTab(t) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 13.dp, vertical = 8.dp),
                 ) {
                     Text(
                         t.label,
-                        color = if (active) White else Text2,
-                        fontSize = 13.sp,
+                        color = if (active) White else Color(0xFFE2E2EA),
+                        fontSize = 13.5.sp,
                         fontFamily = Sans,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     )
                 }
             }
